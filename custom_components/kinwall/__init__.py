@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import secrets
+from urllib.parse import urlparse
 
 from aiohttp.web import Request, Response
 from homeassistant.components import webhook
@@ -73,6 +75,18 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     await hass.config_entries.async_reload(entry.entry_id)
 
 
+def _is_private_host(url: str) -> bool:
+    """True for localhost, .local/.internal names and RFC1918/link-local/CGNAT addresses."""
+    host = (urlparse(url).hostname or "").lower().rstrip(".")
+    if host == "localhost" or host.endswith((".local", ".internal", ".localhost", ".lan", ".home")):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip in ipaddress.ip_network("100.64.0.0/10")  # CGNAT / Tailscale
+
+
 async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, client: KinwallClient) -> None:
     """Register an HA webhook and point a new Kinwall webhook at it."""
     webhook_id = entry.data.get(CONF_WEBHOOK_ID)
@@ -85,7 +99,9 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
         new_data[CONF_WEBHOOK_ID] = webhook_id
 
     try:
-        base_url = get_url(hass, prefer_external=False, allow_internal=True)
+        # A Kinwall on the LAN (the add-on, a NAS) can reach HA's internal URL; a hosted or
+        # otherwise remote Kinwall needs the external one.
+        base_url = get_url(hass, prefer_external=not _is_private_host(entry.data[CONF_URL]), allow_internal=True)
     except Exception:  # noqa: BLE001 - no configured/derivable URL
         _LOGGER.warning("Kinwall: no HA base URL available; skipping push webhook registration")
         webhook.async_register(hass, DOMAIN, "Kinwall", webhook_id, _handle_webhook)

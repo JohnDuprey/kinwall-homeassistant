@@ -36,3 +36,12 @@ async def test_setup_entry_registers_webhook(hass, aioclient_mock):
     aioclient_mock.delete(f"{BASE_URL}/api/webhooks/wh_server_1", json={"ok": True})
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
+
+
+def test_private_host_detection() -> None:
+    from custom_components.kinwall import _is_private_host
+
+    for url in ("http://192.168.1.10:8080", "http://homeassistant.local:8080", "http://10.0.0.5", "http://localhost:8080", "http://[fd00::1]:8080", "http://100.64.0.1"):
+        assert _is_private_host(url), url
+    for url in ("https://duprey.kinwall.family", "http://8.8.8.8", "https://example.com:8443"):
+        assert not _is_private_host(url), url
