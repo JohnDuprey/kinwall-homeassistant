@@ -7,6 +7,7 @@ CONF_API_KEY = "api_key"
 CONF_WEBHOOK_ID = "webhook_id"
 CONF_KINWALL_WEBHOOK_ID = "kinwall_webhook_id"
 CONF_KINWALL_WEBHOOK_SECRET = "kinwall_webhook_secret"
+CONF_KINWALL_WEBHOOK_URL = "kinwall_webhook_url"  # the callback we registered; re-registered when HA's URL changes
 
 DEFAULT_POLL_INTERVAL = 30  # seconds
 OPT_POLL_INTERVAL = "poll_interval"

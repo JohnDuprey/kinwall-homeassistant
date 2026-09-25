@@ -45,3 +45,22 @@ def test_private_host_detection() -> None:
         assert _is_private_host(url), url
     for url in ("https://duprey.kinwall.family", "http://8.8.8.8", "https://example.com:8443"):
         assert not _is_private_host(url), url
+
+
+async def test_webhook_reregistered_when_ha_url_changes(hass, aioclient_mock):
+    from custom_components.kinwall.const import CONF_KINWALL_WEBHOOK_SECRET, CONF_KINWALL_WEBHOOK_URL
+
+    _mock_full_refresh(aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/webhooks", json={"id": "wh_new"})
+    aioclient_mock.delete(f"{BASE_URL}/api/webhooks/wh_old", json={"ok": True})
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    entry = MockConfigEntry(domain=DOMAIN, data={
+        CONF_URL: BASE_URL, CONF_API_KEY: "fc_key", CONF_WEBHOOK_ID: "hook1",
+        CONF_KINWALL_WEBHOOK_ID: "wh_old", CONF_KINWALL_WEBHOOK_SECRET: "s", CONF_KINWALL_WEBHOOK_URL: "http://10.0.0.1:8123/api/webhook/hook1",
+    })
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.data[CONF_KINWALL_WEBHOOK_ID] == "wh_new"
+    assert entry.data[CONF_KINWALL_WEBHOOK_URL] == "http://192.168.1.10:8123/api/webhook/hook1"
+    assert any(m == "DELETE" and str(u).endswith("/api/webhooks/wh_old") for m, u, *_ in aioclient_mock.mock_calls)

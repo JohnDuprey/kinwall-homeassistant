@@ -24,6 +24,7 @@ from .const import (
     ALL_WEBHOOK_EVENTS,
     CONF_KINWALL_WEBHOOK_ID,
     CONF_KINWALL_WEBHOOK_SECRET,
+    CONF_KINWALL_WEBHOOK_URL,
     CONF_WEBHOOK_ID,
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
@@ -130,6 +131,14 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
 
     callback_url = f"{base_url}{webhook.async_generate_path(webhook_id)}"
 
+    # HA's URL changed since we registered (external URL set or corrected): replace the webhook.
+    if kinwall_webhook_id and entry.data.get(CONF_KINWALL_WEBHOOK_URL) not in (None, callback_url):
+        try:
+            await client.delete_webhook(kinwall_webhook_id)
+        except KinwallApiError as err:
+            _LOGGER.debug("Kinwall: old webhook %s not removed: %s", kinwall_webhook_id, err)
+        kinwall_webhook_id = None
+
     if not kinwall_webhook_id or not secret:
         secret = secrets.token_hex(32)
         try:
@@ -140,6 +149,7 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
             kinwall_webhook_id = None
         new_data[CONF_KINWALL_WEBHOOK_ID] = kinwall_webhook_id
         new_data[CONF_KINWALL_WEBHOOK_SECRET] = secret
+        new_data[CONF_KINWALL_WEBHOOK_URL] = callback_url if kinwall_webhook_id else None
 
     if new_data != entry.data:
         hass.config_entries.async_update_entry(entry, data=new_data)
