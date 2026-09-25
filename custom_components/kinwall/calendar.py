@@ -142,7 +142,7 @@ class KinwallMemberCalendar(_KinwallCalendarBase):
     def __init__(self, coordinator: KinwallCoordinator, entry: ConfigEntry, member_id: str, member_name: str) -> None:
         super().__init__(coordinator, entry, f"{entry.entry_id}_calendar_{member_id}")
         self._member_id = member_id
-        self._attr_device_info = member_device_info(entry, member_id, member_name)
+        self._attr_device_info = member_device_info(entry, member_id, member_name, coordinator.family_device_id)
 
     def _events_for(self) -> list[dict[str, Any]]:
         return [e for e in self.coordinator.data.events if self._member_id in e.get("memberIds", [])]

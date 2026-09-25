@@ -28,7 +28,7 @@ class _MemberSensor(KinwallEntity, SensorEntity):
     def __init__(self, coordinator: KinwallCoordinator, entry: ConfigEntry, member_id: str, member_name: str, unique_suffix: str) -> None:
         super().__init__(coordinator, entry, f"{entry.entry_id}_sensor_{member_id}_{unique_suffix}")
         self._member_id = member_id
-        self._attr_device_info = member_device_info(entry, member_id, member_name)
+        self._attr_device_info = member_device_info(entry, member_id, member_name, coordinator.family_device_id)
 
     def _member(self) -> dict[str, Any] | None:
         return next((m for m in self.coordinator.data.members if m["id"] == self._member_id), None)

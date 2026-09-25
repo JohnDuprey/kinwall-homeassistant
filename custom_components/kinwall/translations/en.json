@@ -39,12 +39,26 @@
   },
   "entity": {
     "sensor": {
-      "points_today": { "name": "Points today" },
-      "points_week": { "name": "Points this week" },
-      "chores_remaining_today": { "name": "Chores remaining today" }
+      "points_today": {
+        "name": "Points today"
+      },
+      "points_week": {
+        "name": "Points this week"
+      },
+      "chores_remaining_today": {
+        "name": "Chores remaining today"
+      }
     },
     "calendar": {
-      "family_calendar": { "name": "Family" }
+      "family_calendar": {
+        "name": "Family"
+      }
+    }
+  },
+  "issues": {
+    "external_url_required": {
+      "title": "Kinwall can't push updates to Home Assistant",
+      "description": "Kinwall at {url} is not on your local network, so it can only reach Home Assistant through an external URL. Set one under Settings → System → Network → Home Assistant URL → Internet, then reload the Kinwall integration. Until then the integration polls every 30 seconds instead."
     }
   }
 }

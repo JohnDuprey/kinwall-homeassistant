@@ -125,7 +125,7 @@ class KinwallChoreList(KinwallEntity, TodoListEntity):
         if member_id == ANYONE_ID:
             self._attr_device_info = family_device_info(entry, "Family")
         else:
-            self._attr_device_info = member_device_info(entry, member_id, member_name)
+            self._attr_device_info = member_device_info(entry, member_id, member_name, coordinator.family_device_id)
 
     def _chores(self) -> list[dict[str, Any]]:
         if self._member_id == ANYONE_ID:

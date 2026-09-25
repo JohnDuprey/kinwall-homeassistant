@@ -16,6 +16,7 @@ from homeassistant.const import CONF_API_KEY, CONF_URL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.network import get_url
 
 from .api import KinwallApiError, KinwallClient
@@ -47,14 +48,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    # Create the "Family" device up front so member devices' via_device (set by entity
-    # platforms below, in undefined order) always resolves.
-    dr.async_get(hass).async_get_or_create(
+    # Create the "Family" device up front so member devices (set up by the entity platforms
+    # below, in undefined order) can hang off it by id.
+    family_device = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, f"{entry.entry_id}_{FAMILY_DEVICE_KEY}")},
         name="Family",
         manufacturer="Kinwall",
     )
+    coordinator.family_device_id = family_device.id
 
     await _async_register_webhook(hass, entry, client)
 
@@ -98,12 +100,29 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
         webhook_id = webhook.async_generate_id()
         new_data[CONF_WEBHOOK_ID] = webhook_id
 
+    remote = not _is_private_host(entry.data[CONF_URL])
     try:
-        # A Kinwall on the LAN (the add-on, a NAS) can reach HA's internal URL; a hosted or
-        # otherwise remote Kinwall needs the external one.
-        base_url = get_url(hass, prefer_external=not _is_private_host(entry.data[CONF_URL]), allow_internal=True)
-    except Exception:  # noqa: BLE001 - no configured/derivable URL
-        _LOGGER.warning("Kinwall: no HA base URL available; skipping push webhook registration")
+        # A Kinwall on the LAN (the add-on, a NAS) can reach HA's internal URL. A hosted or
+        # otherwise remote Kinwall can only reach a public one, so that case insists on HA's
+        # external URL (Settings → System → Network) rather than silently falling back to a LAN
+        # address the server would refuse.
+        if remote:
+            base_url = get_url(hass, allow_internal=False, allow_ip=False, prefer_external=True)
+        else:
+            base_url = get_url(hass, prefer_external=False, allow_internal=True)
+        ir.async_delete_issue(hass, DOMAIN, f"external_url_{entry.entry_id}")
+    except Exception:  # noqa: BLE001 - NoURLAvailableError: nothing configured/derivable
+        if remote:
+            _LOGGER.warning(
+                "Kinwall at %s is not on your network, so it needs Home Assistant's external URL to push updates; "
+                "set it under Settings → System → Network. Falling back to polling.", entry.data[CONF_URL],
+            )
+            ir.async_create_issue(
+                hass, DOMAIN, f"external_url_{entry.entry_id}", is_fixable=False, severity=ir.IssueSeverity.WARNING,
+                translation_key="external_url_required", translation_placeholders={"url": entry.data[CONF_URL]},
+            )
+        else:
+            _LOGGER.warning("Kinwall: no HA base URL available; skipping push webhook registration")
         webhook.async_register(hass, DOMAIN, "Kinwall", webhook_id, _handle_webhook)
         if new_data != entry.data:
             hass.config_entries.async_update_entry(entry, data=new_data)
@@ -117,7 +136,7 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
             created = await client.create_webhook(callback_url, secret, ALL_WEBHOOK_EVENTS)
             kinwall_webhook_id = created["id"]
         except KinwallApiError as err:
-            _LOGGER.warning("Kinwall: failed to register server-side webhook: %s", err)
+            _LOGGER.warning("Kinwall: failed to register server-side webhook at %s: %s", callback_url, err)
             kinwall_webhook_id = None
         new_data[CONF_KINWALL_WEBHOOK_ID] = kinwall_webhook_id
         new_data[CONF_KINWALL_WEBHOOK_SECRET] = secret

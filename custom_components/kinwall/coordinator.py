@@ -41,6 +41,7 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
         )
         self.client = client
         self._last_rev: int | None = None
+        self.family_device_id: str | None = None  # set by async_setup_entry; member devices hang off it
         self.data = KinwallData()
 
     async def _async_update_data(self) -> KinwallData:
