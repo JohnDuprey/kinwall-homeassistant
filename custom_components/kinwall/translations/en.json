@@ -1,0 +1,50 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Kinwall",
+        "data": {
+          "url": "URL",
+          "api_key": "Admin API key"
+        },
+        "data_description": {
+          "url": "e.g. {example_url}",
+          "api_key": "An admin-scope key from Kinwall Settings → API keys. Needed to register the push webhook."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Kinwall",
+        "data": {
+          "api_key": "Admin API key"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid API key",
+      "cannot_connect": "Could not connect to Kinwall"
+    },
+    "abort": {
+      "already_configured": "This Kinwall server is already configured",
+      "reauth_successful": "Reauthentication was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "poll_interval": "Poll interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "points_today": { "name": "Points today" },
+      "points_week": { "name": "Points this week" },
+      "chores_remaining_today": { "name": "Chores remaining today" }
+    },
+    "calendar": {
+      "family_calendar": { "name": "Family" }
+    }
+  }
+}
