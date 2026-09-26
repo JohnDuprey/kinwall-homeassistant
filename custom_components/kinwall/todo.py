@@ -17,7 +17,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import KinwallApiError
-from .const import DOMAIN
+from .const import DEFAULT_CHORE_POINTS, DOMAIN, OPT_CHORE_POINTS
 from .coordinator import KinwallCoordinator
 from .entity import KinwallEntity, family_device_info, member_device_info
 
@@ -155,7 +155,8 @@ class KinwallChoreList(KinwallEntity, TodoListEntity):
         await self.coordinator.async_request_refresh()
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
-        payload: dict[str, Any] = {"title": item.summary, "dueDate": _today()}
+        # Points come from the integration's options (default 5) so automations get a sensible value.
+        payload: dict[str, Any] = {"title": item.summary, "dueDate": _today(), "points": self._entry.options.get(OPT_CHORE_POINTS, DEFAULT_CHORE_POINTS)}
         if self._member_id != ANYONE_ID:
             payload["memberId"] = self._member_id
         await self.coordinator.client.create_chore(payload)

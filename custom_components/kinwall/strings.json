@@ -32,7 +32,8 @@
     "step": {
       "init": {
         "data": {
-          "poll_interval": "Poll interval (seconds)"
+          "poll_interval": "Poll interval (seconds)",
+          "chore_points": "Points for chores created from Home Assistant"
         }
       }
     }

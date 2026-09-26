@@ -28,6 +28,7 @@ Settings → Add-ons → Add-on Store → ⋮ → Repositories → add
 
 - **URL / API key**: set during setup; the API key can be replaced later via the reauth flow if it's
   revoked or rotated.
+- **Points for chores created from Home Assistant** (integration Options, default 5): every chore added from an HA to-do list or an automation (`todo.add_item`) gets this many points.
 - **Poll interval** (integration Options, default 30s): how often the integration checks
   `GET /api/rev`. Real-time updates don't depend on this — the integration also registers a Kinwall
   webhook and refreshes immediately when the server pushes a change.

@@ -11,7 +11,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import KinwallAuthError, KinwallClient
-from .const import DEFAULT_POLL_INTERVAL, DOMAIN, MAX_POLL_INTERVAL, MIN_POLL_INTERVAL, OPT_POLL_INTERVAL
+from .const import DEFAULT_CHORE_POINTS, DEFAULT_POLL_INTERVAL, DOMAIN, MAX_POLL_INTERVAL, MIN_POLL_INTERVAL, OPT_CHORE_POINTS, OPT_POLL_INTERVAL
 
 STEP_USER_SCHEMA = vol.Schema(
     {
@@ -112,11 +112,13 @@ class KinwallOptionsFlow(OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         current = self._config_entry.options.get(OPT_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
+        points = self._config_entry.options.get(OPT_CHORE_POINTS, DEFAULT_CHORE_POINTS)
         schema = vol.Schema(
             {
                 vol.Optional(OPT_POLL_INTERVAL, default=current): vol.All(
                     vol.Coerce(int), vol.Range(min=MIN_POLL_INTERVAL, max=MAX_POLL_INTERVAL)
-                )
+                ),
+                vol.Optional(OPT_CHORE_POINTS, default=points): vol.All(vol.Coerce(int), vol.Range(min=0, max=1000)),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
