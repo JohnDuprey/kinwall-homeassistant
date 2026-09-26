@@ -1,6 +1,7 @@
 """Thin async client for the Kinwall API (see the kinwall repo's docs/integrations/rest-api.md)."""
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -11,7 +12,19 @@ class KinwallAuthError(Exception):
 
 
 class KinwallApiError(Exception):
-    """Raised on other non-2xx responses."""
+    """Raised on other non-2xx responses. `reason` is the server's `error` field when it sent JSON."""
+
+    def __init__(self, message: str, status: int | None = None, body: str | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+        self.reason: str | None = None
+        if body:
+            try:
+                parsed = json.loads(body)
+                if isinstance(parsed, dict) and isinstance(parsed.get("error"), str):
+                    self.reason = parsed["error"]
+            except ValueError:
+                pass
 
 
 class KinwallClient:
@@ -34,7 +47,7 @@ class KinwallClient:
                 raise KinwallAuthError("invalid or expired API key")
             if resp.status >= 400:
                 body = await resp.text()
-                raise KinwallApiError(f"{method} {path} -> {resp.status}: {body}")
+                raise KinwallApiError(f"{method} {path} -> {resp.status}: {body}", resp.status, body)
             if resp.status == 204:
                 return None
             return await resp.json()

@@ -176,3 +176,19 @@ async def test_move_to_start_with_no_previous(hass, aioclient_mock):
 
     calls = [c for c in aioclient_mock.mock_calls if c[0] == "POST" and "reorder" in str(c[1])]
     assert calls[0][2] == {"itemIds": ["b", "a"]}
+
+
+def test_chore_todo_item_describes_its_checklist() -> None:
+    from custom_components.kinwall.todo import _to_todo_item
+
+    item = _to_todo_item({"id": "c1", "title": "Clean room", "emoji": None, "completed": False, "checklist": {"listId": "l1", "name": "Clean room", "total": 3, "done": 1}})
+    assert item.description == "Checklist: Clean room 1/3"
+    assert _to_todo_item({"id": "c2", "title": "Bins", "completed": False, "checklist": None}).description is None
+
+
+def test_api_error_exposes_server_reason() -> None:
+    from custom_components.kinwall.api import KinwallApiError
+
+    err = KinwallApiError("POST /x -> 409: ...", 409, '{"error":"Checklist not finished (2 left)","remaining":2}')
+    assert err.status == 409 and err.reason == "Checklist not finished (2 left)"
+    assert KinwallApiError("POST /x -> 500: boom", 500, "boom").reason is None

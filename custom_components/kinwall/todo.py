@@ -13,8 +13,10 @@ from typing import Any
 from homeassistant.components.todo import TodoItem, TodoItemStatus, TodoListEntity, TodoListEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api import KinwallApiError
 from .const import DOMAIN
 from .coordinator import KinwallCoordinator
 from .entity import KinwallEntity, family_device_info, member_device_info
@@ -33,7 +35,10 @@ def _today() -> str:
 def _to_todo_item(chore: dict[str, Any]) -> TodoItem:
     status = TodoItemStatus.COMPLETED if chore.get("completed") else TodoItemStatus.NEEDS_ACTION
     summary = f"{chore['emoji']} {chore['title']}" if chore.get("emoji") else chore["title"]
-    return TodoItem(uid=chore["id"], summary=summary, status=status)
+    # A linked checklist gates completion (the server answers 409 until it's fully ticked); say so.
+    cl = chore.get("checklist")
+    description = f"Checklist: {cl['name']} {cl['done']}/{cl['total']}" if cl else None
+    return TodoItem(uid=chore["id"], summary=summary, status=status, description=description)
 
 
 def _meta_line(item: dict[str, Any]) -> str | None:
@@ -140,7 +145,11 @@ class KinwallChoreList(KinwallEntity, TodoListEntity):
         today = _today()
         if item.status == TodoItemStatus.COMPLETED:
             member_id = None if self._member_id == ANYONE_ID else self._member_id
-            await self.coordinator.client.complete_chore(item.uid, today, member_id)
+            try:
+                await self.coordinator.client.complete_chore(item.uid, today, member_id)
+            except KinwallApiError as err:
+                # e.g. 409 "Checklist not finished (2 left)": surface the server's reason, not a stack trace.
+                raise HomeAssistantError(err.reason or str(err)) from err
         else:
             await self.coordinator.client.uncomplete_chore(item.uid, today)
         await self.coordinator.async_request_refresh()
