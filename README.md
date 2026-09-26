@@ -160,4 +160,4 @@ python3 -m venv .venv
 
 ## License
 
-AGPL-3.0-or-later — see [LICENSE](LICENSE). Same licence as Kinwall itself.
+AGPL-3.0-or-later — see [LICENSE](LICENSE). Same license as Kinwall itself.
