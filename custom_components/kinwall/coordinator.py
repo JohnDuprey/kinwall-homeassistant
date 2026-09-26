@@ -23,6 +23,7 @@ class KinwallData:
     members: list[dict] = field(default_factory=list)
     calendars: list[dict] = field(default_factory=list)
     events: list[dict] = field(default_factory=list)
+    chores: list[dict] = field(default_factory=list)  # every chore, due today or not (binary sensors)
     chores_today: list[dict] = field(default_factory=list)
     lists: list[dict] = field(default_factory=list)
     # list id -> its items, fetched via one GET /api/lists/{id} per list per refresh.
@@ -74,6 +75,7 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
             end = (now + timedelta(days=EVENTS_WINDOW_FUTURE_DAYS)).strftime("%Y-%m-%dT00:00:00.000Z")
             events = await self.client.get_events(start, end)
             today = now.strftime("%Y-%m-%d")
+            chores = await self.client.get_chores()
             chores_today = await self.client.get_chores_day(today)
             lists = await self.client.get_lists()
             list_items: dict[str, list[dict]] = {}
@@ -90,6 +92,7 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
             members=members,
             calendars=calendars,
             events=events,
+            chores=chores,
             chores_today=chores_today,
             lists=lists,
             list_items=list_items,

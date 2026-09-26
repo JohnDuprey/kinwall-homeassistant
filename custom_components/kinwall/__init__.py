@@ -37,7 +37,7 @@ from .entity import FAMILY_DEVICE_KEY
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.CALENDAR, Platform.TODO, Platform.SENSOR]
+PLATFORMS = [Platform.CALENDAR, Platform.TODO, Platform.SENSOR, Platform.BINARY_SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

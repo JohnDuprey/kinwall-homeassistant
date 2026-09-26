@@ -84,6 +84,9 @@ class KinwallClient:
         await self._request("DELETE", f"/api/events/{event_id}")
 
     # -- chores -------------------------------------------------------
+    async def get_chores(self) -> list[dict[str, Any]]:
+        return await self._request("GET", "/api/chores")
+
     async def get_chores_day(self, date: str) -> list[dict[str, Any]]:
         return await self._request("GET", "/api/chores/day", params={"date": date})
 

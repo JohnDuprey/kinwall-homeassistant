@@ -46,6 +46,7 @@ One device per family member, plus a "Family" device for shared/aggregate entiti
 | `sensor.<member>_points_today` | Member | Chore points earned today. |
 | `sensor.<member>_points_this_week` | Member | Chore points earned this (household-timezone) week. |
 | `sensor.<member>_chores_remaining_today` | Member | Count of today's chores not yet completed. |
+| `binary_sensor.<member>_<chore>` | Member (or Family for unassigned) | One per chore: **on** once it's completed today, off while open or not due today. Attributes: `due_today`, `points`, `completed_at`, and `checklist` / `checklist_done` / `checklist_total` when the chore has a checklist. The thing to gate automations on ("is the after-school checklist done?"). New chores appear after reloading the integration. |
 
 ### Lists
 

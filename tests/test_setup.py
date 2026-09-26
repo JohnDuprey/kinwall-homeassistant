@@ -12,6 +12,7 @@ def _mock_full_refresh(aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/chores", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[])
 
@@ -64,3 +65,30 @@ async def test_webhook_reregistered_when_ha_url_changes(hass, aioclient_mock):
     assert entry.data[CONF_KINWALL_WEBHOOK_ID] == "wh_new"
     assert entry.data[CONF_KINWALL_WEBHOOK_URL] == "http://192.168.1.10:8123/api/webhook/hook1"
     assert any(m == "DELETE" and str(u).endswith("/api/webhooks/wh_old") for m, u, *_ in aioclient_mock.mock_calls)
+
+
+async def test_chore_binary_sensor_reflects_todays_completion(hass, aioclient_mock):
+    aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": 1})
+    aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
+    aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/chores", json=[
+        {"id": "c1", "title": "After school checklist", "memberId": "m1", "points": 5, "active": True, "listId": "l1"},
+        {"id": "c2", "title": "Bins", "memberId": "m1", "points": 5, "active": True, "listId": None},
+    ])
+    aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[
+        {"id": "c1", "title": "After school checklist", "memberId": "m1", "completed": True, "completedAt": "2026-09-28T20:00:00Z", "checklist": {"listId": "l1", "name": "After school", "total": 4, "done": 4}},
+    ])
+    aioclient_mock.get(f"{BASE_URL}/api/lists", json=[])
+    aioclient_mock.post(f"{BASE_URL}/api/webhooks", json={"id": "wh"})
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_URL: BASE_URL, CONF_API_KEY: "fc_key"})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    done = hass.states.get("binary_sensor.alice_after_school_checklist")
+    assert done is not None and done.state == "on"
+    assert done.attributes["checklist_done"] == 4 and done.attributes["due_today"] is True
+    bins = hass.states.get("binary_sensor.alice_bins")
+    assert bins is not None and bins.state == "off" and bins.attributes["due_today"] is False

@@ -13,6 +13,7 @@ def _mock_full_refresh(aioclient_mock, rev: int):
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/chores", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[])
 
@@ -46,6 +47,7 @@ async def test_refetch_when_rev_changes(hass, aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 5, "pointsWeek": 5}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/chores", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[])
 
@@ -60,6 +62,7 @@ async def test_fetches_lists_and_one_detail_per_list(hass, aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/chores", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[{"id": "l1", "name": "Groceries", "kind": "shopping"}])
     aioclient_mock.get(
