@@ -118,6 +118,14 @@
         "plan_servings": {
           "name": "Planned servings",
           "description": "Servings for the planned meal. Defaults to the recipe's."
+        },
+        "prep_minutes": {
+          "name": "Prep time",
+          "description": "Minutes of prep."
+        },
+        "total_minutes": {
+          "name": "Total time",
+          "description": "Minutes from start to table."
         }
       }
     },

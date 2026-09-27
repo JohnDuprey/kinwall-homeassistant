@@ -30,13 +30,13 @@ async def test_import_recipe_posts_the_recipe_and_returns_the_result(hass, aiocl
     result = {"recipeId": "r1", "created": True, "planned": False, "reason": "dinner on 2026-10-05 already has Tacos"}
     aioclient_mock.post(f"{BASE_URL}/api/recipes/import", json=result)
     response = await hass.services.async_call(DOMAIN, "import_recipe", {
-        "external_id": "abc", "name": "Creamy Chicken", "servings": 2, "source_url": "https://example.com/card.pdf",
+        "external_id": "abc", "name": "Creamy Chicken", "servings": 2, "source_url": "https://example.com/card.pdf", "prep_minutes": 10, "total_minutes": 35,
         "ingredients": ["Salt", {"text": "1.5 tablespoon Sour Cream", "pantry": False}], "steps": ["Cook."],
         "plan_date": "2026-10-05",
     }, blocking=True, return_response=True)
     assert response == result
     assert _last_json(aioclient_mock, "/api/recipes/import") == {
-        "source": "hellofresh", "externalId": "abc", "name": "Creamy Chicken", "servings": 2.0, "sourceUrl": "https://example.com/card.pdf",
+        "source": "hellofresh", "externalId": "abc", "name": "Creamy Chicken", "servings": 2.0, "sourceUrl": "https://example.com/card.pdf", "prepMinutes": 10, "totalMinutes": 35,
         "ingredients": ["Salt", {"text": "1.5 tablespoon Sour Cream", "pantry": False}], "steps": ["Cook."],
         "plan": {"date": "2026-10-05", "slot": "dinner"},
     }

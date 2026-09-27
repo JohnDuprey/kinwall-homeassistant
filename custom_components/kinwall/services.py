@@ -29,6 +29,8 @@ IMPORT_RECIPE_SCHEMA = vol.Schema({
     vol.Optional("source_url"): vol.Any(None, cv.url),
     vol.Optional("image_url"): vol.Any(None, cv.url),
     vol.Optional("servings"): vol.Any(None, vol.Coerce(float)),
+    vol.Optional("prep_minutes"): vol.Any(None, vol.Coerce(int)),
+    vol.Optional("total_minutes"): vol.Any(None, vol.Coerce(int)),
     vol.Optional("ingredients", default=list): [_INGREDIENT],
     vol.Optional("steps"): vol.Any(None, [cv.string]),
     vol.Optional("plan_date"): vol.Any(None, cv.date),
@@ -83,7 +85,7 @@ async def _call(what: str, request) -> Any:
 async def _import_recipe(call: ServiceCall) -> ServiceResponse:
     d = call.data
     payload: dict[str, Any] = {"source": d["source"], "externalId": d["external_id"], "name": d["name"], "ingredients": d["ingredients"]}
-    for key, api_key in (("description", "description"), ("source_url", "sourceUrl"), ("image_url", "imageUrl"), ("servings", "servings"), ("steps", "steps")):
+    for key, api_key in (("description", "description"), ("source_url", "sourceUrl"), ("image_url", "imageUrl"), ("servings", "servings"), ("steps", "steps"), ("prep_minutes", "prepMinutes"), ("total_minutes", "totalMinutes")):
         if d.get(key) is not None:
             payload[api_key] = d[key]
     if d.get("plan_date") is not None:

@@ -38,6 +38,22 @@ import_recipe:
           min: 1
           max: 100
           mode: box
+    prep_minutes:
+      example: 10
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    total_minutes:
+      example: 35
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: min
+          mode: box
     ingredients:
       example: '["Salt", {"text": "1.5 tablespoon Sour Cream", "pantry": false}]'
       selector:

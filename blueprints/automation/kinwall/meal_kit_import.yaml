@@ -181,6 +181,8 @@ actions:
                   source_url: "{{ recipe.card_url or recipe.url or none }}"
                   image_url: "{{ recipe.image_url or none }}"
                   servings: "{{ recipe.servings }}"
+                  prep_minutes: "{{ recipe.prep_time_minutes or none }}"
+                  total_minutes: "{{ recipe.total_time_minutes or none }}"
                   ingredients: "{{ ingredients }}"
                   steps: "{{ recipe.steps | map(attribute='instructions') | list }}"
                   plan_date: "{{ nights[repeat.index - 1] }}"
