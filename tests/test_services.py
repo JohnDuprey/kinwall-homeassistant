@@ -32,14 +32,18 @@ async def test_import_recipe_posts_the_recipe_and_returns_the_result(hass, aiocl
     response = await hass.services.async_call(DOMAIN, "import_recipe", {
         "external_id": "abc", "name": "Creamy Chicken", "servings": 2, "source_url": "https://example.com/card.pdf", "prep_minutes": 10, "total_minutes": 35,
         "ingredients": ["Salt", {"text": "1.5 tablespoon Sour Cream", "pantry": False}], "steps": ["Cook."],
-        "plan_date": "2026-10-05",
+        "plan_date": "2026-10-05", "plan_calendar_id": "cal-1",
     }, blocking=True, return_response=True)
     assert response == result
     assert _last_json(aioclient_mock, "/api/recipes/import") == {
         "source": "hellofresh", "externalId": "abc", "name": "Creamy Chicken", "servings": 2.0, "sourceUrl": "https://example.com/card.pdf", "prepMinutes": 10, "totalMinutes": 35,
         "ingredients": ["Salt", {"text": "1.5 tablespoon Sour Cream", "pantry": False}], "steps": ["Cook."],
-        "plan": {"date": "2026-10-05", "slot": "dinner"},
+        "plan": {"date": "2026-10-05", "slot": "dinner", "calendarId": "cal-1"},
     }
+    # Empty (the blueprint's default) means no calendar event.
+    aioclient_mock.post(f"{BASE_URL}/api/recipes/import", json=result)
+    await hass.services.async_call(DOMAIN, "import_recipe", {"external_id": "abc", "name": "X", "plan_date": "2026-10-05", "plan_calendar_id": ""}, blocking=True, return_response=True)
+    assert _last_json(aioclient_mock, "/api/recipes/import")["plan"] == {"date": "2026-10-05", "slot": "dinner"}
 
 
 async def test_plan_meal_posts_a_meal(hass, aioclient_mock):

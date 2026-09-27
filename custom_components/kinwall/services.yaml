@@ -77,6 +77,10 @@ import_recipe:
           min: 1
           max: 100
           mode: box
+    plan_calendar_id:
+      example: 3f2c9a3e-8a4b-4c1d-9e2f-5b6a7c8d9e0f
+      selector:
+        text:
 
 plan_meal:
   fields:

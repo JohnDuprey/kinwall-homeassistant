@@ -36,6 +36,7 @@ IMPORT_RECIPE_SCHEMA = vol.Schema({
     vol.Optional("plan_date"): vol.Any(None, cv.date),
     vol.Optional("plan_slot", default="dinner"): vol.In(SLOTS),
     vol.Optional("plan_servings"): vol.Any(None, vol.Coerce(float)),
+    vol.Optional("plan_calendar_id"): vol.Any(None, cv.string),
 })
 
 PLAN_MEAL_SCHEMA = vol.All(
@@ -92,6 +93,8 @@ async def _import_recipe(call: ServiceCall) -> ServiceResponse:
         payload["plan"] = {"date": d["plan_date"].isoformat(), "slot": d["plan_slot"]}
         if d.get("plan_servings") is not None:
             payload["plan"]["servings"] = d["plan_servings"]
+        if d.get("plan_calendar_id"):  # empty = no calendar event
+            payload["plan"]["calendarId"] = d["plan_calendar_id"]
     return await _call("import the recipe", _client(call.hass, call).import_recipe(payload))
 
 
