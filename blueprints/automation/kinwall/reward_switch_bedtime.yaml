@@ -1,0 +1,124 @@
+blueprint:
+  name: Kinwall reward moves a Nintendo Switch bedtime
+  description: >-
+    When someone gets a chosen Kinwall reward (for example "Nintendo Switch"), move a Nintendo
+    Switch's bedtime later for the rest of the day, then put it back at midnight.
+
+    Set up in Kinwall: Settings → Access → Webhooks → New webhook, with this automation's webhook
+    URL and the events reward.redeemed and reward.approved. A reward that needs a parent's OK
+    counts once it's approved; one that doesn't counts right away.
+
+    Needs the Nintendo Switch parental controls integration, plus one Toggle helper you create
+    first, which notes the bedtime was moved today so midnight only resets it after a reward.
+  domain: automation
+  source_url: https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/blueprints/automation/kinwall/reward_switch_bedtime.yaml
+  input:
+    webhook_id:
+      name: Webhook ID
+      description: >-
+        A long random ID. Anyone who knows the webhook URL can trigger it, so don't reuse a
+        guessable name.
+      selector:
+        text:
+    reward_title:
+      name: Reward name
+      description: The Kinwall reward to watch for. Matches if the reward's name contains this (not case-sensitive).
+      default: Nintendo Switch
+      selector:
+        text:
+    member_id:
+      name: Only for this Kinwall member (optional)
+      description: A Kinwall member ID. Leave empty to count the reward for anyone.
+      default: ""
+      selector:
+        text:
+    bedtime_entity:
+      name: Switch bedtime
+      description: The Switch's "Bedtime alarm" entity.
+      selector:
+        entity:
+          domain: time
+    new_bedtime:
+      name: Bedtime with the reward
+      default: "18:30:00"
+      selector:
+        time:
+    usual_bedtime:
+      name: Usual bedtime
+      description: What the bedtime goes back to.
+      default: "18:00:00"
+      selector:
+        time:
+    moved_today:
+      name: Moved today helper
+      description: A Toggle helper. On while the bedtime is moved.
+      selector:
+        entity:
+          domain: input_boolean
+    reset_at:
+      name: Put it back at
+      default: "00:00:00"
+      selector:
+        time:
+
+mode: queued
+max_exceeded: silent
+
+triggers:
+  - trigger: webhook
+    webhook_id: !input webhook_id
+    allowed_methods: [POST]
+    local_only: false
+    id: reward
+  - trigger: time
+    at: !input reset_at
+    id: reset
+
+variables:
+  reward_title: !input reward_title
+  member_id: !input member_id
+  bedtime_entity: !input bedtime_entity
+  new_bedtime: !input new_bedtime
+  usual_bedtime: !input usual_bedtime
+  moved_today: !input moved_today
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: reward
+          # reward.approved, or reward.redeemed that needed no OK (status approved).
+          - condition: template
+            value_template: >-
+              {% set j = trigger.json if trigger.json is defined else {} %}
+              {% set d = j.get('data', {}) %}
+              {{ (j.get('type') == 'reward.approved'
+                  or (j.get('type') == 'reward.redeemed' and d.get('status') == 'approved'))
+                 and reward_title | lower in (d.get('title') or '') | lower
+                 and (member_id == '' or d.get('memberId') == member_id) }}
+        sequence:
+          # Only ever move it later, never earlier.
+          - condition: template
+            value_template: "{{ states(bedtime_entity) < new_bedtime }}"
+          - action: time.set_value
+            target:
+              entity_id: !input bedtime_entity
+            data:
+              time: "{{ new_bedtime }}"
+          - action: input_boolean.turn_on
+            target:
+              entity_id: !input moved_today
+      - conditions:
+          - condition: trigger
+            id: reset
+          - condition: template
+            value_template: "{{ is_state(moved_today, 'on') }}"
+        sequence:
+          - action: time.set_value
+            target:
+              entity_id: !input bedtime_entity
+            data:
+              time: "{{ usual_bedtime }}"
+          - action: input_boolean.turn_off
+            target:
+              entity_id: !input moved_today

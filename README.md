@@ -161,3 +161,18 @@ python3 -m venv .venv
 ## License
 
 AGPL-3.0-or-later — see [LICENSE](LICENSE). Same license as Kinwall itself.
+
+## Blueprints
+
+### Kinwall reward moves a Nintendo Switch bedtime
+
+When someone gets a chosen Kinwall reward (say "Nintendo Switch"), move a Switch's bedtime later for the rest of the day (6:30 PM by default), then put it back at midnight (to 6:00 PM by default). It only ever moves the bedtime later.
+
+[![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Freward_switch_bedtime.yaml)
+
+1. Set up the **Nintendo Switch parental controls** integration and find the Switch's **Bedtime alarm** entity.
+2. Create a **Toggle** helper, for example "Switch bedtime moved".
+3. Import the blueprint and create an automation from it. Pick a long random **Webhook ID**, the reward name, the bedtime entity and the toggle.
+4. In Kinwall, go to **Settings → Access → Webhooks → New webhook**. Use your Home Assistant webhook URL (`https://<your Home Assistant>/api/webhook/<Webhook ID>`, or your Home Assistant Cloud webhook URL) and choose the events `reward.redeemed` and `reward.approved`. Hosted Kinwall needs a URL reachable from the internet.
+
+A reward that needs a parent's OK moves the bedtime once it's approved; one that doesn't moves it right away. Anyone who knows the webhook URL can trigger it, so keep the Webhook ID secret.
