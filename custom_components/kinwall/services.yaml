@@ -1,0 +1,97 @@
+import_recipe:
+  fields:
+    config_entry:
+      selector:
+        config_entry:
+          integration: kinwall
+    source:
+      default: hellofresh
+      example: hellofresh
+      selector:
+        text:
+    external_id:
+      required: true
+      example: 6819dfd55efe69a088447ef3
+      selector:
+        text:
+    name:
+      required: true
+      example: Creamy Chicken
+      selector:
+        text:
+    description:
+      selector:
+        text:
+          multiline: true
+    source_url:
+      selector:
+        text:
+          type: url
+    image_url:
+      selector:
+        text:
+          type: url
+    servings:
+      example: 2
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    ingredients:
+      example: '["Salt", {"text": "1.5 tablespoon Sour Cream", "pantry": false}]'
+      selector:
+        object:
+    steps:
+      example: '["Boil water.", "Cook the chicken."]'
+      selector:
+        object:
+    plan_date:
+      selector:
+        date:
+    plan_slot:
+      default: dinner
+      selector:
+        select:
+          options: [breakfast, lunch, dinner, snack]
+          translation_key: slot
+    plan_servings:
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+
+plan_meal:
+  fields:
+    config_entry:
+      selector:
+        config_entry:
+          integration: kinwall
+    date:
+      required: true
+      selector:
+        date:
+    slot:
+      default: dinner
+      selector:
+        select:
+          options: [breakfast, lunch, dinner, snack]
+          translation_key: slot
+    title:
+      example: Leftover soup
+      selector:
+        text:
+    recipe_id:
+      selector:
+        text:
+    servings:
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    notes:
+      selector:
+        text:
+          multiline: true

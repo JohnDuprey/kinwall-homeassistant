@@ -1,0 +1,191 @@
+blueprint:
+  name: Kinwall weekly meal kit import (HelloFresh)
+  description: >-
+    Once a week, put your HelloFresh box on Kinwall's meal planner: each meal you picked for the
+    delivery becomes a Kinwall recipe (ingredients scaled to your servings, steps, recipe card
+    link) and is planned one a night from delivery day on, skipping nights that already have a
+    meal. Ingredients that ship in the box stay off Kinwall grocery lists; the pantry items you
+    supply yourself go on them.
+
+    Importing again updates the same recipes and meals instead of adding copies, so it's safe to
+    run by hand (the automation's Run action) after changing your picks.
+
+    Needs the HelloFresh integration for Home Assistant and the Kinwall integration set up with an
+    admin API key.
+  domain: automation
+  homeassistant:
+    min_version: 2025.4.0
+  source_url: https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/blueprints/automation/kinwall/meal_kit_import.yaml
+  input:
+    run_day:
+      name: Day to import
+      default: sun
+      selector:
+        select:
+          options:
+            - { label: Monday, value: mon }
+            - { label: Tuesday, value: tue }
+            - { label: Wednesday, value: wed }
+            - { label: Thursday, value: thu }
+            - { label: Friday, value: fri }
+            - { label: Saturday, value: sat }
+            - { label: Sunday, value: sun }
+    run_at:
+      name: Time to import
+      default: "10:00:00"
+      selector:
+        time:
+    which_week:
+      name: Which delivery
+      description: >-
+        Next delivery: the first box delivered today or later that has meals picked. Latest
+        delivery: the most recent box delivered today or earlier.
+      default: next
+      selector:
+        select:
+          options:
+            - { label: Next delivery, value: next }
+            - { label: Latest delivery, value: latest }
+    servings:
+      name: Servings
+      description: >-
+        Servings to scale ingredients to. 0 uses your HelloFresh plan's number of people. A meal
+        you doubled counts twice.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 12
+          mode: box
+    first_night_offset:
+      name: First night
+      description: Days after delivery for the first meal (0 = delivery day).
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 6
+          mode: box
+    slot:
+      name: Meal
+      default: dinner
+      selector:
+        select:
+          options:
+            - { label: Breakfast, value: breakfast }
+            - { label: Lunch, value: lunch }
+            - { label: Dinner, value: dinner }
+            - { label: Snack, value: snack }
+    skip_weekends:
+      name: Skip weekends
+      description: Don't plan meals on Saturday or Sunday.
+      default: false
+      selector:
+        boolean:
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: time
+    at: !input run_at
+
+# Skipped when you run the automation by hand.
+conditions:
+  - condition: time
+    weekday: !input run_day
+
+variables:
+  which_week: !input which_week
+  servings_input: !input servings
+  first_night_offset: !input first_night_offset
+  slot: !input slot
+  skip_weekends: !input skip_weekends
+
+actions:
+  - action: hellofresh.get_weeks
+    response_variable: hf
+  - action: hellofresh.get_account_summary
+    response_variable: account
+  # The chosen box, trimmed to what the import needs: {week_id, delivery_date, recipes: [{id, quantity}]}.
+  - variables:
+      week: >-
+        {% set today = now().date().isoformat() %}
+        {% set weeks = (hf.weeks if hf is mapping and hf.weeks is defined else [])
+          | selectattr('delivery_date') | rejectattr('is_skipped') | list %}
+        {% if which_week == 'latest' %}
+          {% set weeks = weeks | selectattr('delivery_date', 'le', today) | sort(attribute='delivery_date', reverse=true) %}
+        {% else %}
+          {% set weeks = weeks | selectattr('delivery_date', 'ge', today) | sort(attribute='delivery_date') %}
+        {% endif %}
+        {% set ns = namespace(week=none, recipes=[]) %}
+        {% for w in weeks if ns.week is none %}
+          {% for r in (w.recipes or []) if r.is_selected %}
+            {% set ns.recipes = ns.recipes + [{'id': r.recipe_id | string, 'quantity': r.selected_quantity or 1}] %}
+          {% endfor %}
+          {% if ns.recipes %}
+            {% set ns.week = {'week_id': w.week_id, 'delivery_date': w.delivery_date, 'recipes': ns.recipes} %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.week }}
+      household_servings: >-
+        {% set n = servings_input | int(0) %}
+        {{ n if n > 0 else ((account.number_of_people if account is mapping else 0) | int(0)) }}
+  - if:
+      - condition: template
+        value_template: "{{ not week }}"
+    then:
+      - stop: No HelloFresh delivery with meals picked for the chosen week
+  # Up to seven nights to try, from the first night on (weekends left out when asked).
+  - variables:
+      nights: >-
+        {% set start = strptime(week.delivery_date, '%Y-%m-%d').date() + timedelta(days=first_night_offset | int(0)) %}
+        {% set ns = namespace(out=[]) %}
+        {% for i in range(21) %}
+          {% set d = start + timedelta(days=i) %}
+          {% if (not skip_weekends or d.weekday() < 5) and ns.out | count < 7 %}
+            {% set ns.out = ns.out + [d.isoformat()] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.out }}
+  - repeat:
+      for_each: "{{ week.recipes }}"
+      sequence:
+        - variables:
+            recipe_servings: "{{ (household_servings | int(0)) * ([repeat.item.quantity | int(1), 1] | max) }}"
+        - action: hellofresh.get_recipe_detail
+          data: >-
+            {{ {'recipe_id': repeat.item.id} | combine({'servings': recipe_servings} if recipe_servings | int(0) > 0 else {}) }}
+          response_variable: detail
+        # "1.5 tablespoon Sour Cream"; shipped == false is a pantry item you supply yourself.
+        - variables:
+            recipe: "{{ detail.recipe }}"
+            ingredients: >-
+              {% set ns = namespace(out=[]) %}
+              {% for i in detail.recipe.ingredients if i.name %}
+                {% set amount = [i.amount | string, i.unit or ''] if i.amount else [] %}
+                {% set ns.out = ns.out + [{'text': (amount + [i.name]) | reject('eq', '') | join(' '), 'pantry': i.shipped == false}] %}
+              {% endfor %}
+              {{ ns.out }}
+            result: { planned: false }
+        # The first free night: Kinwall answers planned: false when that night already has a meal,
+        # and planned: true (without a second meal) when an earlier import planned this one.
+        - repeat:
+            sequence:
+              - action: kinwall.import_recipe
+                data:
+                  source: hellofresh
+                  external_id: "{{ recipe.recipe_id }}"
+                  name: "{{ recipe.name }}"
+                  description: "{{ recipe.description or recipe.headline or none }}"
+                  source_url: "{{ recipe.card_url or recipe.url or none }}"
+                  image_url: "{{ recipe.image_url or none }}"
+                  servings: "{{ recipe.servings }}"
+                  ingredients: "{{ ingredients }}"
+                  steps: "{{ recipe.steps | map(attribute='instructions') | list }}"
+                  plan_date: "{{ nights[repeat.index - 1] }}"
+                  plan_slot: "{{ slot }}"
+                response_variable: result
+            until:
+              - condition: template
+                value_template: "{{ result.planned or repeat.index >= nights | count }}"

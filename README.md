@@ -77,6 +77,15 @@ The integration fires `kinwall_<type>` on the Home Assistant event bus for every
 receives (e.g. `kinwall_chore_completed`, `kinwall_events_changed`), with the webhook's `data` payload
 as the event data — use these in automations for anything the built-in entities don't cover directly.
 
+### Actions
+
+Both need the integration's API key to be an **admin** key (a display key gets a clear error). With more than one Kinwall set up, pick one with `config_entry`. Both return Kinwall's answer (`response_variable`).
+
+| Action | What it does |
+|---|---|
+| `kinwall.import_recipe` | Adds a recipe to Kinwall's recipe library from another app, such as a meal kit, or updates it when the same `source` + `external_id` was imported before. Fields: `source` (default `hellofresh`), `external_id`, `name`, `description`, `source_url` (recipe card), `image_url`, `servings` (what the amounts are for), `ingredients` (lines like `"1.5 tablespoon Sour Cream"`, or `{text, pantry, category}` where `pantry: false` means it ships in the kit and stays off grocery lists), `steps`, and optionally `plan_date` + `plan_slot` (default `dinner`) + `plan_servings` to plan it. Returns `{recipeId, created, planned, mealId?, reason?}`: `planned: false` with a `reason` when that slot already has a meal. |
+| `kinwall.plan_meal` | Plans a meal: `date`, `slot` (default `dinner`), and a `recipe_id` (such as `recipeId` from `import_recipe`) or a `title` for a free-form meal, plus optional `servings` and `notes`. Returns the meal. |
+
 ## Example automations
 
 **Announce when all of a kid's chores are done**
@@ -176,3 +185,15 @@ When someone gets a chosen Kinwall reward (say "Nintendo Switch"), move a Switch
 4. In Kinwall, go to **Settings → Access → Webhooks → New webhook**. Use your Home Assistant webhook URL (`https://<your Home Assistant>/api/webhook/<Webhook ID>`, or your Home Assistant Cloud webhook URL) and choose the events `reward.redeemed` and `reward.approved`. Hosted Kinwall needs a URL reachable from the internet.
 
 A reward that needs a parent's OK moves the bedtime once it's approved; one that doesn't moves it right away. Anyone who knows the webhook URL can trigger it, so keep the Webhook ID secret.
+
+### Weekly meal kit import (HelloFresh)
+
+Once a week (Sunday 10:00 by default), put your HelloFresh box on Kinwall's meal planner. Each meal you picked for the next delivery becomes a Kinwall recipe, with its ingredients scaled to your servings, its steps and a link to the recipe card, and is planned as a dinner: one a night from delivery day on, skipping nights that already have a dinner. Ingredients that ship in the box stay off your Kinwall grocery list; the pantry items you supply yourself (oil, salt, butter) go on it.
+
+[![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Fmeal_kit_import.yaml)
+
+1. Set up the **HelloFresh** integration for Home Assistant, and this integration with an **admin** API key.
+2. Import the blueprint and create an automation from it. The defaults import the **next delivery** with meals picked, at your plan's number of people, as dinners from delivery day; you can change the day and time, the servings, the first night (days after delivery), the meal (dinner, lunch…) and whether to skip weekends.
+3. To import now (for example after changing your picks), open the automation and choose **Run**.
+
+Running it again updates the same recipes and finds the meals it already planned, even ones you moved to another night that week, so nothing is added twice. A meal that finds no free night in the seven it tries is imported to the recipe library without being planned. A meal you doubled is scaled for twice your servings. Needs Home Assistant 2025.4 or later.

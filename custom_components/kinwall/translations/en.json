@@ -61,5 +61,109 @@
       "title": "Kinwall can't push updates to Home Assistant",
       "description": "Kinwall at {url} is not on your local network, so it can only reach Home Assistant through an external URL. Set one under Settings → System → Network → Home Assistant URL → Internet, then reload the Kinwall integration. Until then the integration polls every 30 seconds instead."
     }
+  },
+  "services": {
+    "import_recipe": {
+      "name": "Import recipe",
+      "description": "Adds a recipe from another app (such as a meal kit) to Kinwall's recipe library, or updates it if it was imported before, and optionally plans it. Needs an admin API key.",
+      "fields": {
+        "config_entry": {
+          "name": "Kinwall",
+          "description": "Which Kinwall, when more than one is set up."
+        },
+        "source": {
+          "name": "Source",
+          "description": "Where the recipe comes from. With the ID, it identifies the recipe, so importing it again updates it."
+        },
+        "external_id": {
+          "name": "Recipe ID",
+          "description": "The source's own ID for the recipe."
+        },
+        "name": {
+          "name": "Name",
+          "description": "The recipe's name."
+        },
+        "description": {
+          "name": "Description",
+          "description": "A short description."
+        },
+        "source_url": {
+          "name": "Recipe card link",
+          "description": "Link to the recipe card, saved as the recipe's source link."
+        },
+        "image_url": {
+          "name": "Image link",
+          "description": "Link to a photo of the dish."
+        },
+        "servings": {
+          "name": "Servings",
+          "description": "How many servings the ingredient amounts are for."
+        },
+        "ingredients": {
+          "name": "Ingredients",
+          "description": "A list of lines like \"1.5 tablespoon Sour Cream\", or objects with text, pantry and category. pantry: false means it ships in the kit, so grocery lists leave it off."
+        },
+        "steps": {
+          "name": "Steps",
+          "description": "A list of steps, saved as numbered instructions."
+        },
+        "plan_date": {
+          "name": "Plan on",
+          "description": "Also plan the recipe on this date, unless that slot already has a meal. The response says whether it was planned."
+        },
+        "plan_slot": {
+          "name": "Plan for",
+          "description": "Which meal of the day to plan it for."
+        },
+        "plan_servings": {
+          "name": "Planned servings",
+          "description": "Servings for the planned meal. Defaults to the recipe's."
+        }
+      }
+    },
+    "plan_meal": {
+      "name": "Plan meal",
+      "description": "Plans a meal on Kinwall's meal planner: a recipe from the library, or just a name. Needs an admin API key.",
+      "fields": {
+        "config_entry": {
+          "name": "Kinwall",
+          "description": "Which Kinwall, when more than one is set up."
+        },
+        "date": {
+          "name": "Date",
+          "description": "The day of the meal."
+        },
+        "slot": {
+          "name": "Meal",
+          "description": "Which meal of the day."
+        },
+        "title": {
+          "name": "Title",
+          "description": "The meal's name. Needed unless you give a recipe ID."
+        },
+        "recipe_id": {
+          "name": "Recipe ID",
+          "description": "A Kinwall recipe ID, such as the recipe_id from Import recipe."
+        },
+        "servings": {
+          "name": "Servings",
+          "description": "Defaults to the recipe's."
+        },
+        "notes": {
+          "name": "Notes",
+          "description": "Notes on the meal."
+        }
+      }
+    }
+  },
+  "selector": {
+    "slot": {
+      "options": {
+        "breakfast": "Breakfast",
+        "lunch": "Lunch",
+        "dinner": "Dinner",
+        "snack": "Snack"
+      }
+    }
   }
 }

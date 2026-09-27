@@ -127,6 +127,13 @@ class KinwallClient:
     async def clear_completed_list_items(self, list_id: str) -> dict[str, Any]:
         return await self._request("POST", f"/api/lists/{list_id}/clear-completed")
 
+    # -- meals (admin only) --------------------------------------------
+    async def import_recipe(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/api/recipes/import", json=payload)
+
+    async def create_meal(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/api/meals", json=payload)
+
     # -- webhooks (admin only) --------------------------------------------
     async def create_webhook(self, url: str, secret: str, events: list[str]) -> dict[str, Any]:
         payload = {"url": url, "secret": secret, "events": events}
