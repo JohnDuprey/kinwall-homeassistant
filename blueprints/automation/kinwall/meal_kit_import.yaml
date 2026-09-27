@@ -181,8 +181,14 @@ actions:
                   source_url: "{{ recipe.card_url or recipe.url or none }}"
                   image_url: "{{ recipe.image_url or none }}"
                   servings: "{{ recipe.servings }}"
-                  prep_minutes: "{{ recipe.prep_time_minutes or none }}"
-                  total_minutes: "{{ recipe.total_time_minutes or none }}"
+                  # HelloFresh's recipe detail can report the two times swapped (prep 60, total
+                  # 15), so the larger is always the total and the smaller the prep.
+                  prep_minutes: >-
+                    {% set t = [recipe.prep_time_minutes, recipe.total_time_minutes] | select('number') | list %}
+                    {{ (t | min) if t | count == 2 else none }}
+                  total_minutes: >-
+                    {% set t = [recipe.prep_time_minutes, recipe.total_time_minutes] | select('number') | list %}
+                    {{ (t | max) if t | count else none }}
                   ingredients: "{{ ingredients }}"
                   steps: "{{ recipe.steps | map(attribute='instructions') | list }}"
                   plan_date: "{{ nights[repeat.index - 1] }}"
