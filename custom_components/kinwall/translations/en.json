@@ -119,6 +119,10 @@
           "name": "Planned servings",
           "description": "Servings for the planned meal. Defaults to the recipe's."
         },
+        "plan_calendar_id": {
+          "name": "Add to calendar",
+          "description": "A Kinwall calendar ID (Kinwall Settings → Calendars, tap the calendar: it's at the bottom). The planned meal also goes on that calendar at its usual meal time, unless it already has an event. Synced calendars work too. Leave empty for no event."
+        },
         "prep_minutes": {
           "name": "Prep time",
           "description": "Minutes of prep."

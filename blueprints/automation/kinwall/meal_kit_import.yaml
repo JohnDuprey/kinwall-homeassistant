@@ -82,6 +82,16 @@ blueprint:
       default: false
       selector:
         boolean:
+    calendar_id:
+      name: Add dinners to calendar
+      description: >-
+        A Kinwall calendar ID. Each planned meal also goes on that calendar, at the family's usual
+        time for that meal and as long as the recipe takes. In Kinwall, open Settings → Calendars and
+        tap the calendar: its ID is at the bottom. A synced Google or Outlook calendar works too.
+        Leave empty to keep meals off the calendar.
+      default: ""
+      selector:
+        text:
 
 mode: single
 max_exceeded: silent
@@ -101,6 +111,7 @@ variables:
   first_night_offset: !input first_night_offset
   slot: !input slot
   skip_weekends: !input skip_weekends
+  calendar_id: !input calendar_id
 
 actions:
   - action: hellofresh.get_weeks
@@ -187,6 +198,7 @@ actions:
                   steps: "{{ recipe.steps | map(attribute='instructions') | list }}"
                   plan_date: "{{ nights[repeat.index - 1] }}"
                   plan_slot: "{{ slot }}"
+                  plan_calendar_id: "{{ calendar_id or none }}"
                 response_variable: result
             until:
               - condition: template

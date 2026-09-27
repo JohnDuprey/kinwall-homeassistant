@@ -100,8 +100,10 @@ async def test_ingredient_lines(hass):
     ]
 
 
-async def test_meal_kit_import_runs_end_to_end(hass, freezer):
-    """Each picked meal lands on the first free night; a taken night moves it to the next."""
+@pytest.mark.parametrize("calendar_id", [None, "cal-1"])
+async def test_meal_kit_import_runs_end_to_end(hass, freezer, calendar_id):
+    """Each picked meal lands on the first free night; a taken night moves it to the next.
+    With "Add dinners to calendar" set, each import names that calendar."""
     freezer.move_to("2026-09-27 10:00:00")
     details = []
 
@@ -138,7 +140,7 @@ async def test_meal_kit_import_runs_end_to_end(hass, freezer):
     hass.services.async_register("kinwall", "import_recipe", respond(import_recipe), schema=IMPORT_RECIPE_SCHEMA, supports_response=SupportsResponse.OPTIONAL)
 
     blueprint = Blueprint(load_yaml(BLUEPRINTS / "meal_kit_import.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
-    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": {}}}).async_substitute()
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": {"calendar_id": calendar_id} if calendar_id else {}}}).async_substitute()
     assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "kit", "alias": "kit"}]})
     await hass.async_block_till_done()
 
@@ -153,6 +155,8 @@ async def test_meal_kit_import_runs_end_to_end(hass, freezer):
     assert first["source"] == "hellofresh" and first["source_url"] == "https://example.com/next1.pdf" and first["description"] == "Tasty"
     assert first["ingredients"] == [{"text": "1 cup Rice", "pantry": False}] and first["steps"] == ["Cook."]
     assert [i["plan_date"].isoformat() for i in imports] == ["2026-10-13", "2026-10-14", "2026-10-13", "2026-10-14", "2026-10-15"]
+
+    assert [i.get("plan_calendar_id") for i in imports] == [calendar_id] * len(imports)  # none unless one is chosen
 
     imports.clear()
     await run()  # running again finds the meals it planned
