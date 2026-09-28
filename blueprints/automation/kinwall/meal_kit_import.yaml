@@ -180,7 +180,8 @@ actions:
               {{ ns.out }}
             # A HelloFresh step is several short instructions, one per line: they become the step's
             # bullets (a one-line step is just its text). A step photo goes along when the detail
-            # carries one (image_url, or the first of images); today's HelloFresh integration doesn't.
+            # carries one (image_url, or the first of images), and so do the step's caption (as its
+            # title) and timers when the integration returns them.
             steps: >-
               {% set ns = namespace(out=[]) %}
               {% for s in detail.recipe.steps or [] if s.instructions is string and s.instructions | trim %}
@@ -188,7 +189,15 @@ actions:
                 {% set first = (s.images | first) if s.images is defined and s.images is sequence and s.images is not string and s.images | count else none %}
                 {% set img = s.image_url if s.image_url is defined and s.image_url is string else (first if first is string else (first.url or first.link) if first is mapping else none) %}
                 {% set step = {'text': lines[0], 'bullets': []} if lines | count == 1 else {'text': '', 'bullets': lines} %}
-                {% set ns.out = ns.out + [step | combine({'image_url': img} if img is string and img.startswith('https://') else {})] %}
+                {% set timers = namespace(out=[]) %}
+                {% for t in (s.timers if s.timers is defined and s.timers is sequence and s.timers is not string else []) if t is mapping and t.minutes is number and t.minutes > 0 %}
+                  {% set timers.out = timers.out + [{'name': t.name if t.name is string and t.name | trim else none, 'minutes': t.minutes}] %}
+                {% endfor %}
+                {% set title = s.caption | trim if s.caption is defined and s.caption is string else '' %}
+                {% set ns.out = ns.out + [step
+                  | combine({'image_url': img} if img is string and img.startswith('https://') else {})
+                  | combine({'title': title} if title else {})
+                  | combine({'timers': timers.out} if timers.out else {})] %}
               {% endfor %}
               {{ ns.out }}
             result: { planned: false }
