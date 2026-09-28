@@ -11,6 +11,12 @@ from homeassistant.util.yaml import load_yaml
 
 from custom_components.kinwall.services import IMPORT_RECIPE_SCHEMA
 
+@pytest.fixture
+def expected_lingering_timers() -> bool:
+    """Automations set up here keep their time triggers scheduled after the test."""
+    return True
+
+
 BLUEPRINTS = Path(__file__).parent.parent / "blueprints" / "automation" / "kinwall"
 REQUIRED_INPUTS = {
     "reward_switch_bedtime.yaml": {"webhook_id": "abc", "bedtime_entity": "time.switch_bedtime", "moved_today": "input_boolean.moved"},

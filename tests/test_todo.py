@@ -1,6 +1,8 @@
 """Todo entity: completing an item calls the right Kinwall API endpoint."""
 from datetime import date
 
+import pytest
+
 from homeassistant.components.todo import TodoItem, TodoItemStatus
 
 from custom_components.kinwall.coordinator import KinwallCoordinator, KinwallData
@@ -11,6 +13,12 @@ from custom_components.kinwall.todo import (
     _notes_from_description,
     _to_list_todo_item,
 )
+
+
+@pytest.fixture
+def expected_lingering_timers() -> bool:
+    """These entities run on bare coordinators (no config entry), whose refresh debouncer outlives the test."""
+    return True
 
 
 class _FakeEntry:
