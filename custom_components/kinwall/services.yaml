@@ -59,7 +59,7 @@ import_recipe:
       selector:
         object:
     steps:
-      example: '["Boil water.", "Cook the chicken."]'
+      example: '["Boil water.", {"text": "Cook the chicken", "bullets": ["Pat dry.", "Sear 5 minutes a side."], "image_url": "https://example.com/step2.jpg"}]'
       selector:
         object:
     plan_date:

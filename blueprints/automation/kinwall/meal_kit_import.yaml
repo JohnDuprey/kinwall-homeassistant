@@ -178,6 +178,19 @@ actions:
                 {% set ns.out = ns.out + [{'text': (amount + [i.name]) | reject('eq', '') | join(' '), 'pantry': i.shipped == false}] %}
               {% endfor %}
               {{ ns.out }}
+            # A HelloFresh step is several short instructions, one per line: they become the step's
+            # bullets (a one-line step is just its text). A step photo goes along when the detail
+            # carries one (image_url, or the first of images); today's HelloFresh integration doesn't.
+            steps: >-
+              {% set ns = namespace(out=[]) %}
+              {% for s in detail.recipe.steps or [] if s.instructions is string and s.instructions | trim %}
+                {% set lines = s.instructions.split('\n') | map('trim') | reject('eq', '') | list %}
+                {% set first = (s.images | first) if s.images is defined and s.images is sequence and s.images is not string and s.images | count else none %}
+                {% set img = s.image_url if s.image_url is defined and s.image_url is string else (first if first is string else (first.url or first.link) if first is mapping else none) %}
+                {% set step = {'text': lines[0], 'bullets': []} if lines | count == 1 else {'text': '', 'bullets': lines} %}
+                {% set ns.out = ns.out + [step | combine({'image_url': img} if img is string and img.startswith('https://') else {})] %}
+              {% endfor %}
+              {{ ns.out }}
             result: { planned: false }
         # The first free night: Kinwall answers planned: false when that night already has a meal,
         # and planned: true (without a second meal) when an earlier import planned this one.
@@ -201,7 +214,7 @@ actions:
                     {% set t = [recipe.prep_time_minutes, recipe.total_time_minutes] | select('number') | list %}
                     {{ (t | max) if t | count else none }}
                   ingredients: "{{ ingredients }}"
-                  steps: "{{ recipe.steps | map(attribute='instructions') | list }}"
+                  steps: "{{ steps }}"
                   plan_date: "{{ nights[repeat.index - 1] }}"
                   plan_slot: "{{ slot }}"
                   plan_calendar_id: "{{ calendar_id or none }}"

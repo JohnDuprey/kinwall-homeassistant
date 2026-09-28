@@ -100,6 +100,27 @@ async def test_ingredient_lines(hass):
     ]
 
 
+async def test_steps(hass):
+    """HelloFresh's instruction lines become bullets; a step photo goes along when the detail has one."""
+    detail = {"recipe": {"steps": [
+        {"index": 1, "instructions": "Preheat oven to 425 degrees.\nWash produce."},
+        {"index": 2, "instructions": "Cook the chicken.", "image_url": "https://img.example/2.jpg"},
+        {"index": 3, "instructions": "Toss.\n  \nRoast 15 minutes.", "images": [{"link": "https://img.example/3.jpg", "caption": ""}]},
+        {"index": 4, "instructions": "Plate.", "images": ["https://img.example/4.jpg"]},
+        {"index": 5, "instructions": "Rest.", "image_url": "http://img.example/5.jpg", "images": []},
+        {"index": 6, "instructions": "   "},
+        {"index": 7},
+    ]}}
+    assert _render(hass, "steps", detail=detail) == [
+        {"text": "", "bullets": ["Preheat oven to 425 degrees.", "Wash produce."]},
+        {"text": "Cook the chicken.", "bullets": [], "image_url": "https://img.example/2.jpg"},
+        {"text": "", "bullets": ["Toss.", "Roast 15 minutes."], "image_url": "https://img.example/3.jpg"},
+        {"text": "Plate.", "bullets": [], "image_url": "https://img.example/4.jpg"},
+        {"text": "Rest.", "bullets": []},  # not https: left off
+    ]
+    assert _render(hass, "steps", detail={"recipe": {"steps": None}}) == []
+
+
 @pytest.mark.parametrize("calendar_id", [None, "cal-1"])
 async def test_meal_kit_import_runs_end_to_end(hass, freezer, calendar_id):
     """Each picked meal lands on the first free night; a taken night moves it to the next.
@@ -116,7 +137,8 @@ async def test_meal_kit_import_runs_end_to_end(hass, freezer, calendar_id):
         details.append(dict(call.data))
         rid = call.data["recipe_id"]
         return {"recipe": {"recipe_id": rid, "name": f"Meal {rid}", "headline": "Tasty", "card_url": f"https://example.com/{rid}.pdf",
-                           "servings": call.data.get("servings"), "steps": [{"index": 1, "instructions": "Cook."}],
+                           "servings": call.data.get("servings"),
+                           "steps": [{"index": 1, "instructions": "Cook."}, {"index": 2, "instructions": "Plate.\nServe.", "image_url": f"https://img.example/{rid}-2.jpg"}],
                            "ingredients": [{"name": "Rice", "amount": 1, "unit": "cup", "shipped": True}]}}
 
     taken = {"2026-10-13"}  # delivery night already has a dinner
@@ -153,7 +175,8 @@ async def test_meal_kit_import_runs_end_to_end(hass, freezer, calendar_id):
     assert [d.get("servings") for d in details] == [2, 4]  # the doubled meal is scaled for twice the people
     first = imports[0]
     assert first["source"] == "hellofresh" and first["source_url"] == "https://example.com/next1.pdf" and first["description"] == "Tasty"
-    assert first["ingredients"] == [{"text": "1 cup Rice", "pantry": False}] and first["steps"] == ["Cook."]
+    assert first["ingredients"] == [{"text": "1 cup Rice", "pantry": False}] and first["steps"] == [
+        {"text": "Cook.", "bullets": []}, {"text": "", "bullets": ["Plate.", "Serve."], "image_url": "https://img.example/next1-2.jpg"}]
     assert [i["plan_date"].isoformat() for i in imports] == ["2026-10-13", "2026-10-14", "2026-10-13", "2026-10-14", "2026-10-15"]
 
     assert [i.get("plan_calendar_id") for i in imports] == [calendar_id] * len(imports)  # none unless one is chosen

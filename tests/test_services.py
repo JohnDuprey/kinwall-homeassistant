@@ -46,6 +46,27 @@ async def test_import_recipe_posts_the_recipe_and_returns_the_result(hass, aiocl
     assert _last_json(aioclient_mock, "/api/recipes/import")["plan"] == {"date": "2026-10-05", "slot": "dinner"}
 
 
+async def test_import_recipe_takes_structured_steps(hass, aioclient_mock):
+    await _setup(hass, aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/recipes/import", json={"recipeId": "r1", "created": True, "planned": False})
+    await hass.services.async_call(DOMAIN, "import_recipe", {"external_id": "abc", "name": "X", "steps": [
+        "Boil water.",
+        {"text": "Sear", "bullets": ["Heat oil.", "Cook 5 minutes."], "image_url": "https://example.com/s2.jpg"},
+        {"bullets": ["Plate."]},
+        {"text": "Serve.", "image_url": None},
+    ]}, blocking=True, return_response=True)
+    assert _last_json(aioclient_mock, "/api/recipes/import")["steps"] == [
+        "Boil water.",
+        {"text": "Sear", "bullets": ["Heat oil.", "Cook 5 minutes."], "imageUrl": "https://example.com/s2.jpg"},
+        {"text": "", "bullets": ["Plate."]},
+        {"text": "Serve.", "bullets": []},
+    ]
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(DOMAIN, "import_recipe", {"external_id": "abc", "name": "X", "steps": [{"text": "x", "image_url": "not a url"}]}, blocking=True, return_response=True)
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(DOMAIN, "import_recipe", {"external_id": "abc", "name": "X", "steps": [{"text": "x", "photo": "https://example.com/a.jpg"}]}, blocking=True, return_response=True)
+
+
 async def test_plan_meal_posts_a_meal(hass, aioclient_mock):
     await _setup(hass, aioclient_mock)
     aioclient_mock.post(f"{BASE_URL}/api/meals", json={"id": "m1", "title": "Soup"})

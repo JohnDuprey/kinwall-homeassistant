@@ -20,6 +20,12 @@ _INGREDIENT = vol.Any(
     vol.Schema({vol.Required("text"): cv.string, vol.Optional("pantry"): cv.boolean, vol.Optional("category"): vol.Any(None, cv.string)}),
 )
 
+# A step: text (several lines become bullets in Kinwall), or its text, bullets and photo.
+_STEP = vol.Any(
+    cv.string,
+    vol.Schema({vol.Optional("text"): vol.Any(None, cv.string), vol.Optional("bullets"): vol.Any(None, [cv.string]), vol.Optional("image_url"): vol.Any(None, cv.url)}),
+)
+
 IMPORT_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_CONFIG_ENTRY): cv.string,
     vol.Optional("source", default="hellofresh"): cv.string,
@@ -32,7 +38,7 @@ IMPORT_RECIPE_SCHEMA = vol.Schema({
     vol.Optional("prep_minutes"): vol.Any(None, vol.Coerce(int)),
     vol.Optional("total_minutes"): vol.Any(None, vol.Coerce(int)),
     vol.Optional("ingredients", default=list): [_INGREDIENT],
-    vol.Optional("steps"): vol.Any(None, [cv.string]),
+    vol.Optional("steps"): vol.Any(None, [_STEP]),
     vol.Optional("plan_date"): vol.Any(None, cv.date),
     vol.Optional("plan_slot", default="dinner"): vol.In(SLOTS),
     vol.Optional("plan_servings"): vol.Any(None, vol.Coerce(float)),
@@ -83,12 +89,24 @@ async def _call(what: str, request) -> Any:
         raise HomeAssistantError(f"Kinwall could not {what}: {err.reason or err}") from err
 
 
+def _step(step: str | dict[str, Any]) -> str | dict[str, Any]:
+    """A step as Kinwall's import takes it (imageUrl, and no empty fields)."""
+    if isinstance(step, str):
+        return step
+    out = {"text": step.get("text") or "", "bullets": step.get("bullets") or []}
+    if step.get("image_url"):
+        out["imageUrl"] = step["image_url"]
+    return out
+
+
 async def _import_recipe(call: ServiceCall) -> ServiceResponse:
     d = call.data
     payload: dict[str, Any] = {"source": d["source"], "externalId": d["external_id"], "name": d["name"], "ingredients": d["ingredients"]}
-    for key, api_key in (("description", "description"), ("source_url", "sourceUrl"), ("image_url", "imageUrl"), ("servings", "servings"), ("steps", "steps"), ("prep_minutes", "prepMinutes"), ("total_minutes", "totalMinutes")):
+    for key, api_key in (("description", "description"), ("source_url", "sourceUrl"), ("image_url", "imageUrl"), ("servings", "servings"), ("prep_minutes", "prepMinutes"), ("total_minutes", "totalMinutes")):
         if d.get(key) is not None:
             payload[api_key] = d[key]
+    if d.get("steps") is not None:
+        payload["steps"] = [_step(s) for s in d["steps"]]
     if d.get("plan_date") is not None:
         payload["plan"] = {"date": d["plan_date"].isoformat(), "slot": d["plan_slot"]}
         if d.get("plan_servings") is not None:

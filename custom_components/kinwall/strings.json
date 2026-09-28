@@ -105,7 +105,7 @@
         },
         "steps": {
           "name": "Steps",
-          "description": "A list of steps, saved as numbered instructions."
+          "description": "A list of steps: text (a step of several lines becomes bullets), or objects with text, bullets (a list) and image_url (the step's photo)."
         },
         "plan_date": {
           "name": "Plan on",
