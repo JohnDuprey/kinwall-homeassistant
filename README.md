@@ -201,3 +201,15 @@ Once a week (Sunday 10:00 by default), put your HelloFresh box on Kinwall's meal
 Running it again updates the same recipes and finds the meals it already planned, even ones you moved to another night that week, so nothing is added twice. A meal that finds no free night in the seven it tries is imported to the recipe library without being planned. A meal you doubled is scaled for twice your servings. Needs Home Assistant 2025.4 or later.
 
 Each HelloFresh step becomes a numbered step in Kinwall, with its short instructions as bullets you can tick off while cooking. Step photos, captions (as the step's title) and timers go along when the HelloFresh integration provides them; in Kinwall's cooking mode a step's timers are its timer buttons, named ("Rice · 15 min"). Needs the Kinwall server version with recipe steps; an older server rejects the import, and step titles and timers need a Kinwall server newer than 1.0.2.
+
+### Meal kit deliveries (HelloFresh)
+
+Keeps your HelloFresh deliveries on a Kinwall calendar, checked every three hours and when Home Assistant starts. Each box that isn't skipped gets a **📦 HelloFresh delivery** event on its delivery day (the holiday-shifted day when HelloFresh moves it), in your delivery window when HelloFresh gives one ("Wednesdays: 8AM - 8PM" becomes 8 AM to 8 PM) and all day otherwise. Its notes list the meals you picked and, for example, "2 of 3 meals picked". A box that still needs meals picked also gets a **Pick HelloFresh meals** reminder at the selection deadline, in Home Assistant's time zone: a half-hour event ending at the deadline, or, when the deadline is before 6 AM, an all-day reminder the day before (notes say "by 2:59 AM Saturday").
+
+[![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Fmeal_kit_deliveries.yaml)
+
+1. Set up the **HelloFresh** integration for Home Assistant, and this integration (1.5.0 or later) with an **admin** API key.
+2. Make or pick a calendar in Kinwall for the deliveries (**Settings → Calendars**; it must be one made in Kinwall, not a synced Google or Outlook calendar) and copy its ID from the bottom of the calendar's settings.
+3. Import the blueprint and create an automation from it with that **Kinwall calendar ID**. **Weeks ahead** (default 6) is how far ahead deliveries show; **Remind me to pick meals** (default on) adds the deadline reminders.
+
+Each run replaces what it put on the calendar from today through the weeks ahead, so a skipped or cancelled delivery disappears and a changed window or pick updates its event. Past deliveries stay, and events you add yourself on that calendar are never changed. If HelloFresh returns no weeks (for example while it's signed out), the run stops without changing anything. Needs a Kinwall server newer than 1.0.2 and Home Assistant 2025.4 or later.

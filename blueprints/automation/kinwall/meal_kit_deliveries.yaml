@@ -1,0 +1,121 @@
+blueprint:
+  name: Kinwall meal kit deliveries (HelloFresh)
+  description: >-
+    Keeps your HelloFresh deliveries on a Kinwall calendar: a "📦 HelloFresh delivery" event on
+    each delivery day (in your delivery window when HelloFresh gives one, otherwise all day), with
+    the meals you picked in its notes, and a "Pick HelloFresh meals" reminder before each
+    selection deadline for a box that still needs picks.
+
+    It runs every three hours and when Home Assistant starts. Skipped weeks and deliveries that
+    go away are removed from the calendar; past deliveries stay. Events you add yourself on that
+    calendar are never touched.
+
+    Needs the HelloFresh integration for Home Assistant and the Kinwall integration (1.5.0 or
+    later) set up with an admin API key, on a Kinwall server newer than 1.0.2.
+  domain: automation
+  homeassistant:
+    min_version: 2025.4.0
+  source_url: https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/blueprints/automation/kinwall/meal_kit_deliveries.yaml
+  input:
+    calendar_id:
+      name: Kinwall calendar ID
+      description: >-
+        The calendar the deliveries go on. It must be a calendar made in Kinwall (not a synced
+        Google or Outlook one). In Kinwall, open Settings → Calendars and tap the calendar: its
+        ID is at the bottom.
+      selector:
+        text:
+    weeks_ahead:
+      name: Weeks ahead
+      description: How many weeks of deliveries to show, from today.
+      default: 6
+      selector:
+        number:
+          min: 1
+          max: 12
+          mode: box
+    include_deadlines:
+      name: Remind me to pick meals
+      description: >-
+        Also add a "Pick HelloFresh meals" reminder on each selection deadline for a box that
+        still needs meals picked. A deadline before 6 AM goes on the day before, all day.
+      default: true
+      selector:
+        boolean:
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: homeassistant
+    event: start
+  - trigger: time_pattern
+    hours: /3
+    minutes: 7
+
+variables:
+  calendar_id: !input calendar_id
+  weeks_ahead: !input weeks_ahead
+  include_deadlines: !input include_deadlines
+
+actions:
+  - action: hellofresh.get_weeks
+    response_variable: hf
+  # Without a list of weeks, stop instead of syncing nothing (which would clear the calendar).
+  - if:
+      - condition: template
+        value_template: "{{ not (hf is mapping and hf.weeks is defined and hf.weeks is sequence and hf.weeks is not string) }}"
+    then:
+      - stop: HelloFresh didn't return any weeks
+  - variables:
+      from_date: "{{ now().date().isoformat() }}"
+      to_date: "{{ (now().date() + timedelta(weeks=weeks_ahead | int(6))).isoformat() }}"
+      # One delivery event per week that isn't skipped, on the holiday-shifted day when there is
+      # one; timed from the slot's window ("Wednesdays: 8AM - 8PM") when it reads, else all day.
+      # Plus a reminder on the selection deadline (local time) of each week that needs picks.
+      events: >-
+        {% set ns = namespace(out=[]) %}
+        {% for w in hf.weeks if w is mapping and w.delivery_date and not w.is_skipped %}
+          {% set day = w.holiday_delivery_date or w.delivery_date %}
+          {% if from_date <= day <= to_date %}
+            {% set picked = (w.recipes or []) | selectattr('is_selected') | list %}
+            {% set names = picked | map(attribute='name') | select('string') | list %}
+            {% set count = w.meals_selected if w.meals_selected is number else picked | count %}
+            {% set tally = (count ~ ' of ' ~ w.meals_required ~ ' meals picked') if w.meals_required is number else (count ~ ' meals picked') %}
+            {% set event = {'external_id': 'delivery-' ~ w.week_id, 'title': '📦 HelloFresh delivery', 'notes': (names + [tally]) | join('\n')} %}
+            {% set window = (w.slot_label or '') | regex_findall('(\\d{1,2})(?::(\\d{2}))?\\s*([AaPp])\\.?[Mm]\\.?\\s*[-–—to]+\\s*(\\d{1,2})(?::(\\d{2}))?\\s*([AaPp])\\.?[Mm]') %}
+            {% set d = strptime(day, '%Y-%m-%d').date() %}
+            {% if window %}
+              {% set m = window[0] %}
+              {% set start = (m[0] | int % 12 + (12 if m[2] | lower == 'p' else 0)) * 60 + (m[1] or 0) | int %}
+              {% set end = (m[3] | int % 12 + (12 if m[5] | lower == 'p' else 0)) * 60 + (m[4] or 0) | int %}
+              {% set end_day = d + timedelta(days=1 if end <= start else 0) %}
+              {% set event = event | combine({'all_day': false,
+                'start': d.isoformat() ~ 'T%02d:%02d:00' | format(start // 60, start % 60),
+                'end': end_day.isoformat() ~ 'T%02d:%02d:00' | format(end // 60, end % 60)}) %}
+            {% else %}
+              {% set event = event | combine({'all_day': true, 'start': d.isoformat(), 'end': (d + timedelta(days=1)).isoformat()}) %}
+            {% endif %}
+            {% set ns.out = ns.out + [event] %}
+            {% set deadline = as_local(as_datetime(w.selection_deadline)) if include_deadlines and w.needs_selection and w.selection_deadline is string and as_datetime(w.selection_deadline) else none %}
+            {% if deadline and deadline > now() %}
+              {% set at = '%d:%02d %s' | format((deadline.hour + 11) % 12 + 1, deadline.minute, 'AM' if deadline.hour < 12 else 'PM') %}
+              {% set reminder = {'external_id': 'deadline-' ~ w.week_id, 'title': 'Pick HelloFresh meals'} %}
+              {% if deadline.hour < 6 %}
+                {% set reminder = reminder | combine({'all_day': true, 'start': (deadline.date() - timedelta(days=1)).isoformat(), 'end': deadline.date().isoformat(),
+                  'notes': 'by ' ~ at ~ ' ' ~ deadline.strftime('%A')}) %}
+              {% else %}
+                {% set reminder = reminder | combine({'all_day': false, 'start': (deadline - timedelta(minutes=30)).isoformat(), 'end': deadline.isoformat(), 'notes': 'by ' ~ at}) %}
+              {% endif %}
+              {% set ns.out = ns.out + [reminder] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.out }}
+  - action: kinwall.sync_events
+    data:
+      calendar_id: "{{ calendar_id }}"
+      source: ha:hellofresh
+      from: "{{ from_date }}"
+      to: "{{ to_date }}"
+      events: "{{ events }}"

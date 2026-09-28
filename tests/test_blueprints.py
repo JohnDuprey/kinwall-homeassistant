@@ -9,7 +9,7 @@ from homeassistant.helpers.template import Template
 from homeassistant.setup import async_setup_component
 from homeassistant.util.yaml import load_yaml
 
-from custom_components.kinwall.services import IMPORT_RECIPE_SCHEMA
+from custom_components.kinwall.services import IMPORT_RECIPE_SCHEMA, SYNC_EVENTS_SCHEMA
 
 @pytest.fixture
 def expected_lingering_timers() -> bool:
@@ -21,6 +21,7 @@ BLUEPRINTS = Path(__file__).parent.parent / "blueprints" / "automation" / "kinwa
 REQUIRED_INPUTS = {
     "reward_switch_bedtime.yaml": {"webhook_id": "abc", "bedtime_entity": "time.switch_bedtime", "moved_today": "input_boolean.moved"},
     "meal_kit_import.yaml": {},
+    "meal_kit_deliveries.yaml": {"calendar_id": "cal-1"},
 }
 
 
@@ -32,9 +33,9 @@ async def test_blueprint_is_a_valid_automation(hass, name):
     assert await async_validate_config_item(hass, "test", inputs.async_substitute())
 
 
-def _meal_kit_templates() -> dict[str, str]:
-    """Every template in the meal kit blueprint's variables steps, by variable name."""
-    data = load_yaml(BLUEPRINTS / "meal_kit_import.yaml")
+def _meal_kit_templates(name: str = "meal_kit_import.yaml") -> dict[str, str]:
+    """Every template in a blueprint's variables steps, by variable name."""
+    data = load_yaml(BLUEPRINTS / name)
     found: dict[str, str] = {}
 
     def walk(steps):
@@ -195,3 +196,77 @@ async def test_meal_kit_import_runs_end_to_end(hass, freezer, calendar_id):
     await run()  # running again finds the meals it planned
     assert [i["plan_date"].isoformat() for i in imports] == ["2026-10-13", "2026-10-13"]
     assert planned == {"next1": "2026-10-14", "next2": "2026-10-15"}
+
+
+def _delivery_week(week_id, delivery, **extra):
+    return {"week_id": week_id, "delivery_date": delivery, "holiday_delivery_date": None, "selection_deadline": None, "slot_label": "Wednesdays: 8AM - 8PM",
+            "is_skipped": False, "needs_selection": False, "meals_selected": 0, "meals_required": 3, "recipes": [], **extra}
+
+
+DELIVERIES = {"weeks": [
+    _delivery_week("2026-W39", "2026-09-23", meals_selected=3),  # past: left alone
+    _delivery_week("2026-W41", "2026-10-07", selection_deadline="2026-10-02T23:59:59-07:00", needs_selection=True, meals_selected=2, recipes=[
+        {"recipe_id": "a", "name": "Creamy Chicken", "is_selected": True}, {"recipe_id": "b", "name": "Tacos", "is_selected": True},
+        {"recipe_id": "c", "name": "Not picked", "is_selected": False}, {"recipe_id": "d", "is_selected": True}]),
+    _delivery_week("2026-W42", "2026-10-14", is_skipped=True),
+    _delivery_week("2026-W43", "2026-10-21", holiday_delivery_date="2026-10-22", slot_label="Thursday", selection_deadline="2026-10-16T09:00:00-04:00", needs_selection=True),
+    _delivery_week("2026-W44", "2026-10-28", slot_label="Wednesdays: 9:30 PM - 1 AM", meals_selected=3, selection_deadline="2026-10-23T12:00:00-04:00"),
+    _delivery_week("2026-W50", "2026-12-09"),  # beyond the weeks ahead
+    {"week_id": "2026-W51", "delivery_date": None},
+]}
+
+
+async def test_delivery_events(hass, freezer):
+    await hass.config.async_set_time_zone("America/New_York")
+    freezer.move_to("2026-09-28 14:00:00+00:00")
+    template = _meal_kit_templates("meal_kit_deliveries.yaml")["events"]
+    render = lambda **v: Template(template, hass).async_render({"hf": DELIVERIES, "from_date": "2026-09-28", "to_date": "2026-11-09", "include_deadlines": True, **v})
+    assert render() == [
+        {"external_id": "delivery-2026-W41", "title": "📦 HelloFresh delivery", "notes": "Creamy Chicken\nTacos\n2 of 3 meals picked",
+         "all_day": False, "start": "2026-10-07T08:00:00", "end": "2026-10-07T20:00:00"},
+        # 11:59 PM Pacific is 2:59 AM in New York: before 6 AM, so all day on the day before.
+        {"external_id": "deadline-2026-W41", "title": "Pick HelloFresh meals", "all_day": True, "start": "2026-10-02", "end": "2026-10-03", "notes": "by 2:59 AM Saturday"},
+        {"external_id": "delivery-2026-W43", "title": "📦 HelloFresh delivery", "notes": "0 of 3 meals picked", "all_day": True, "start": "2026-10-22", "end": "2026-10-23"},
+        {"external_id": "deadline-2026-W43", "title": "Pick HelloFresh meals", "all_day": False,
+         "start": "2026-10-16T08:30:00-04:00", "end": "2026-10-16T09:00:00-04:00", "notes": "by 9:00 AM"},
+        {"external_id": "delivery-2026-W44", "title": "📦 HelloFresh delivery", "notes": "3 of 3 meals picked",
+         "all_day": False, "start": "2026-10-28T21:30:00", "end": "2026-10-29T01:00:00"},
+    ]
+    assert [e["external_id"] for e in render(include_deadlines=False)] == ["delivery-2026-W41", "delivery-2026-W43", "delivery-2026-W44"]
+
+
+async def test_meal_kit_deliveries_runs_end_to_end(hass, freezer):
+    """Weeks ahead sets the window; the events go to kinwall.sync_events as the source ha:hellofresh.
+    Without weeks from HelloFresh it stops instead of clearing the calendar."""
+    await hass.config.async_set_time_zone("America/New_York")
+    freezer.move_to("2026-09-28 14:00:00+00:00")
+    weeks = {"value": DELIVERIES}
+    synced = []
+
+    async def get_weeks(call):
+        return weeks["value"]
+
+    async def sync_events(call):
+        synced.append(dict(call.data))
+        return {"created": 0, "updated": 0, "deleted": 0}
+
+    hass.services.async_register("hellofresh", "get_weeks", get_weeks, supports_response=SupportsResponse.ONLY)
+    hass.services.async_register("kinwall", "sync_events", sync_events, schema=SYNC_EVENTS_SCHEMA, supports_response=SupportsResponse.OPTIONAL)
+    blueprint = Blueprint(load_yaml(BLUEPRINTS / "meal_kit_deliveries.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": {"calendar_id": "cal-1", "weeks_ahead": 4}}}).async_substitute()
+    assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "deliveries", "alias": "deliveries"}]})
+    await hass.async_block_till_done()
+
+    async def run():
+        await hass.services.async_call("automation", "trigger", {"entity_id": "automation.deliveries"}, blocking=True)
+        await hass.async_block_till_done()
+
+    await run()
+    [call] = synced
+    assert (call["calendar_id"], call["source"], call["from"].isoformat(), call["to"].isoformat()) == ("cal-1", "ha:hellofresh", "2026-09-28", "2026-10-26")
+    assert [e["external_id"] for e in call["events"]] == ["delivery-2026-W41", "deadline-2026-W41", "delivery-2026-W43", "deadline-2026-W43"]
+    assert call["events"][0]["start"].isoformat() == "2026-10-07T08:00:00-04:00"
+
+    weeks["value"] = {"error": "not logged in"}
+    await run()
+    assert len(synced) == 1
