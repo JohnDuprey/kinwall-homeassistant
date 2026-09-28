@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from urllib.parse import quote
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -130,6 +131,9 @@ class KinwallClient:
     # -- meals (admin only) --------------------------------------------
     async def import_recipe(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", "/api/recipes/import", json=payload)
+
+    async def sync_events(self, calendar_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("PUT", f"/api/calendars/{quote(calendar_id, safe='')}/events/sync", json=payload)
 
     async def create_meal(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", "/api/meals", json=payload)

@@ -67,6 +67,58 @@ async def test_import_recipe_takes_structured_steps(hass, aioclient_mock):
         await hass.services.async_call(DOMAIN, "import_recipe", {"external_id": "abc", "name": "X", "steps": [{"text": "x", "photo": "https://example.com/a.jpg"}]}, blocking=True, return_response=True)
 
 
+async def test_import_recipe_passes_step_titles_and_timers(hass, aioclient_mock):
+    await _setup(hass, aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/recipes/import", json={"recipeId": "r1", "created": True, "planned": False})
+    await hass.services.async_call(DOMAIN, "import_recipe", {"external_id": "abc", "name": "X", "steps": [
+        {"text": "Roast.", "title": "Roast veggies", "timers": [{"name": "Veggies", "minutes": 20}, {"minutes": "2.5"}]},
+        {"text": "Serve.", "caption": "Serve", "timers": [], "title": None},
+        {"text": "Plate.", "title": None, "caption": None, "timers": None},
+    ]}, blocking=True, return_response=True)
+    assert _last_json(aioclient_mock, "/api/recipes/import")["steps"] == [
+        {"text": "Roast.", "bullets": [], "title": "Roast veggies", "timers": [{"name": "Veggies", "minutes": 20.0}, {"name": None, "minutes": 2.5}]},
+        {"text": "Serve.", "bullets": [], "title": "Serve"},
+        {"text": "Plate.", "bullets": []},
+    ]
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(DOMAIN, "import_recipe", {"external_id": "abc", "name": "X", "steps": [{"text": "x", "timers": [{"name": "a"}]}]}, blocking=True, return_response=True)
+
+
+async def test_sync_events_puts_the_events_and_returns_the_counts(hass, aioclient_mock):
+    await _setup(hass, aioclient_mock)
+    await hass.config.async_set_time_zone("America/New_York")
+    counts = {"created": 1, "updated": 1, "deleted": 0}
+    aioclient_mock.put(f"{BASE_URL}/api/calendars/cal-1/events/sync", json=counts)
+    response = await hass.services.async_call(DOMAIN, "sync_events", {
+        "calendar_id": "cal-1", "source": "ha:hellofresh", "from": "2026-09-27", "to": "2026-11-08",
+        "events": [
+            {"external_id": "delivery-1", "title": "HelloFresh delivery", "start": "2026-10-07T08:00:00", "end": "2026-10-07T20:00:00-04:00", "notes": "Tacos", "location": "Porch"},
+            {"external_id": "deadline-1", "title": "Pick meals", "start": "2026-10-02", "end": "2026-10-03", "all_day": True},
+        ],
+    }, blocking=True, return_response=True)
+    assert response == counts
+    assert _last_json(aioclient_mock, "/api/calendars/cal-1/events/sync") == {
+        "source": "ha:hellofresh", "from": "2026-09-27", "to": "2026-11-08",
+        "events": [
+            {"externalId": "delivery-1", "title": "HelloFresh delivery", "start": "2026-10-07T08:00:00-04:00", "end": "2026-10-07T20:00:00-04:00", "allDay": False, "notes": "Tacos", "location": "Porch"},
+            {"externalId": "deadline-1", "title": "Pick meals", "start": "2026-10-02", "end": "2026-10-03", "allDay": True},
+        ],
+    }
+    # Defaults: source "home_assistant", no window; an empty list clears that source.
+    aioclient_mock.put(f"{BASE_URL}/api/calendars/cal-1/events/sync", json=counts)
+    await hass.services.async_call(DOMAIN, "sync_events", {"calendar_id": "cal-1", "events": []}, blocking=True, return_response=True)
+    assert _last_json(aioclient_mock, "/api/calendars/cal-1/events/sync") == {"source": "home_assistant", "events": []}
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(DOMAIN, "sync_events", {"calendar_id": "cal-1", "events": [{"external_id": "x", "title": "X", "start": "soon", "end": "later"}]}, blocking=True)
+
+
+async def test_sync_events_explains_a_calendar_that_is_not_local(hass, aioclient_mock):
+    await _setup(hass, aioclient_mock)
+    aioclient_mock.put(f"{BASE_URL}/api/calendars/g1/events/sync", status=400, json={"error": "only local calendars take synced events"})
+    with pytest.raises(HomeAssistantError, match="only local calendars"):
+        await hass.services.async_call(DOMAIN, "sync_events", {"calendar_id": "g1", "events": []}, blocking=True)
+
+
 async def test_plan_meal_posts_a_meal(hass, aioclient_mock):
     await _setup(hass, aioclient_mock)
     aioclient_mock.post(f"{BASE_URL}/api/meals", json={"id": "m1", "title": "Soup"})

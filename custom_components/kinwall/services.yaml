@@ -59,7 +59,7 @@ import_recipe:
       selector:
         object:
     steps:
-      example: '["Boil water.", {"text": "Cook the chicken", "bullets": ["Pat dry.", "Sear 5 minutes a side."], "image_url": "https://example.com/step2.jpg"}]'
+      example: '["Boil water.", {"text": "Cook the chicken", "bullets": ["Pat dry.", "Sear 5 minutes a side."], "image_url": "https://example.com/step2.jpg", "title": "Sear the chicken", "timers": [{"name": "Chicken", "minutes": 10}]}]'
       selector:
         object:
     plan_date:
@@ -81,6 +81,33 @@ import_recipe:
       example: 3f2c9a3e-8a4b-4c1d-9e2f-5b6a7c8d9e0f
       selector:
         text:
+
+sync_events:
+  fields:
+    config_entry:
+      selector:
+        config_entry:
+          integration: kinwall
+    calendar_id:
+      required: true
+      example: 3f2c9a3e-8a4b-4c1d-9e2f-5b6a7c8d9e0f
+      selector:
+        text:
+    source:
+      default: home_assistant
+      example: ha:hellofresh
+      selector:
+        text:
+    from:
+      selector:
+        date:
+    to:
+      selector:
+        date:
+    events:
+      example: '[{"external_id": "delivery-2026-W41", "title": "HelloFresh delivery", "start": "2026-10-07T08:00:00", "end": "2026-10-07T20:00:00", "notes": "Tacos"}, {"external_id": "deadline-2026-W41", "title": "Pick HelloFresh meals", "start": "2026-10-02", "end": "2026-10-03", "all_day": true}]'
+      selector:
+        object:
 
 plan_meal:
   fields:

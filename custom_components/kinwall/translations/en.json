@@ -105,7 +105,7 @@
         },
         "steps": {
           "name": "Steps",
-          "description": "A list of steps: text (a step of several lines becomes bullets), or objects with text, bullets (a list) and image_url (the step's photo)."
+          "description": "A list of steps: text (a step of several lines becomes bullets), or objects with text, bullets (a list), image_url (the step's photo), title (or caption: a short heading for the step) and timers (a list of name and minutes). Step titles and timers need a Kinwall server newer than 1.0.2."
         },
         "plan_date": {
           "name": "Plan on",
@@ -130,6 +130,36 @@
         "total_minutes": {
           "name": "Total time",
           "description": "Minutes from start to table."
+        }
+      }
+    },
+    "sync_events": {
+      "name": "Sync events",
+      "description": "Keeps a set of events on a Kinwall calendar: adds the new ones, updates the changed ones and removes the ones from this source that are missing. Events made in Kinwall are never changed. Only for calendars made in Kinwall (not synced ones). Needs an admin API key and a Kinwall server newer than 1.0.2.",
+      "fields": {
+        "config_entry": {
+          "name": "Kinwall",
+          "description": "Which Kinwall, when more than one is set up."
+        },
+        "calendar_id": {
+          "name": "Calendar ID",
+          "description": "A Kinwall calendar ID (Kinwall Settings → Calendars, tap the calendar: it's at the bottom). It must be a calendar made in Kinwall."
+        },
+        "source": {
+          "name": "Source",
+          "description": "Names this set of events, like ha:hellofresh. A sync only adds, changes or removes events from its own source."
+        },
+        "from": {
+          "name": "From",
+          "description": "With To: only events of this source starting in this window are removed when missing, so past ones stay. Leave both empty to replace every event of this source."
+        },
+        "to": {
+          "name": "To",
+          "description": "The last day of the window (see From)."
+        },
+        "events": {
+          "name": "Events",
+          "description": "Every event this source has now: a list of objects with external_id (the source's own ID for it), title, start and end (a date for all-day events, with an end the day after the last day; otherwise a date-time, in Home Assistant's time zone when it has no offset), all_day, and optionally notes and location."
         }
       }
     },
