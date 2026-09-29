@@ -190,8 +190,12 @@ actions:
                 {% set img = s.image_url if s.image_url is defined and s.image_url is string else (first if first is string else (first.url or first.link) if first is mapping else none) %}
                 {% set step = {'text': lines[0], 'bullets': []} if lines | count == 1 else {'text': '', 'bullets': lines} %}
                 {% set timers = namespace(out=[]) %}
-                {% for t in (s.timers if s.timers is defined and s.timers is sequence and s.timers is not string else []) if t is mapping and t.minutes is number and t.minutes > 0 %}
-                  {% set timers.out = timers.out + [{'name': t.name if t.name is string and t.name | trim else none, 'minutes': t.minutes}] %}
+                {# HelloFresh integration 3.03+: {name, seconds}; older patched copies sent {name, minutes}. #}
+                {% for t in (s.timers if s.timers is defined and s.timers is sequence and s.timers is not string else []) if t is mapping %}
+                  {% set m = (t.seconds / 60) | round(2) if t.seconds is defined and t.seconds is number else (t.minutes if t.minutes is defined and t.minutes is number else 0) %}
+                  {% if m > 0 and m <= 1440 %}
+                    {% set timers.out = timers.out + [{'name': t.name if t.name is string and t.name | trim else none, 'minutes': m}] %}
+                  {% endif %}
                 {% endfor %}
                 {% set title = s.caption | trim if s.caption is defined and s.caption is string else '' %}
                 {% set ns.out = ns.out + [step

@@ -200,7 +200,7 @@ Once a week (Sunday 10:00 by default), put your HelloFresh box on Kinwall's meal
 
 Running it again updates the same recipes and finds the meals it already planned, even ones you moved to another night that week, so nothing is added twice. A meal that finds no free night in the seven it tries is imported to the recipe library without being planned. A meal you doubled is scaled for twice your servings. Needs Home Assistant 2025.4 or later.
 
-Each HelloFresh step becomes a numbered step in Kinwall, with its short instructions as bullets you can tick off while cooking. Step photos, captions (as the step's title) and timers go along when the HelloFresh integration provides them; in Kinwall's cooking mode a step's timers are its timer buttons, named ("Rice · 15 min"). Needs the Kinwall server version with recipe steps; an older server rejects the import, and step titles and timers need a Kinwall server newer than 1.0.2.
+Each HelloFresh step becomes a numbered step in Kinwall, with its short instructions as bullets you can tick off while cooking. Step photos, captions (as the step's title) and timers go along with the HelloFresh integration 3.03 or newer; in Kinwall's cooking mode a step's timers are its timer buttons, named ("Rice · 15 min"). Needs the Kinwall server version with recipe steps; an older server rejects the import, and step titles and timers need a Kinwall server newer than 1.0.2.
 
 ### Meal kit deliveries (HelloFresh)
 
