@@ -196,6 +196,28 @@
           "description": "Notes on the meal."
         }
       }
+    },
+    "night_screen": {
+      "name": "Night screen",
+      "description": "Starts or ends the Night screen on Kinwall's wall screens, for example when nobody's home. Each wall uses its own Night screen settings, and a tap still wakes it. Needs an admin API key and a Kinwall server newer than 1.1.0.",
+      "fields": {
+        "config_entry": {
+          "name": "Kinwall",
+          "description": "Which Kinwall, when more than one is set up."
+        },
+        "on": {
+          "name": "On",
+          "description": "On starts the Night screen; off ends it and wakes the walls."
+        },
+        "displays": {
+          "name": "Wall screens",
+          "description": "Which wall screens: their Night screen switches (or a paired display's name or ID). Leave empty for every wall screen."
+        },
+        "hours": {
+          "name": "Runs out after",
+          "description": "Hours until the Night screen ends by itself if nothing turns it off. Default 12."
+        }
+      }
     }
   },
   "selector": {

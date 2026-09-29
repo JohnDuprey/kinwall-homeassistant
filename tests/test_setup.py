@@ -15,6 +15,7 @@ def _mock_full_refresh(aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/api/chores", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/displays/night-screen", status=404)  # a server older than 1.1.0
 
 
 async def test_setup_entry_registers_webhook(hass, aioclient_mock):
@@ -80,6 +81,7 @@ async def test_chore_binary_sensor_reflects_todays_completion(hass, aioclient_mo
         {"id": "c1", "title": "After school checklist", "memberId": "m1", "completed": True, "completedAt": "2026-09-28T20:00:00Z", "checklist": {"listId": "l1", "name": "After school", "total": 4, "done": 4}},
     ])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/displays/night-screen", status=404)  # a server older than 1.1.0
     aioclient_mock.post(f"{BASE_URL}/api/webhooks", json={"id": "wh"})
     hass.config.internal_url = "http://192.168.1.10:8123"
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_URL: BASE_URL, CONF_API_KEY: "fc_key"})

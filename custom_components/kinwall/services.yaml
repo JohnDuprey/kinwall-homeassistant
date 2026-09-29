@@ -142,3 +142,31 @@ plan_meal:
       selector:
         text:
           multiline: true
+
+night_screen:
+  fields:
+    config_entry:
+      selector:
+        config_entry:
+          integration: kinwall
+    "on":
+      required: true
+      default: true
+      selector:
+        boolean:
+    displays:
+      example: switch.hallway_night_screen
+      selector:
+        entity:
+          integration: kinwall
+          domain: switch
+          multiple: true
+    hours:
+      example: 12
+      selector:
+        number:
+          min: 0.5
+          max: 168
+          step: 0.5
+          unit_of_measurement: h
+          mode: box

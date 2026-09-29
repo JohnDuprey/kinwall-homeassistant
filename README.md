@@ -5,7 +5,8 @@ self-hosted, open-source family wall calendar + chore chart. The main Kinwall se
 separate repo; this repo has:
 
 - **`custom_components/kinwall`** — a HACS-installable integration: calendars, to-do lists, and
-  sensors for each family member, kept live via a push webhook.
+  sensors for each family member, and Night screen switches for the wall screens, kept live via a
+  push webhook.
 - **`kinwall/`** — a Home Assistant add-on that runs the Kinwall server itself.
 
 ## Install the integration (HACS)
@@ -35,7 +36,8 @@ Settings → Add-ons → Add-on Store → ⋮ → Repositories → add
 
 ## Entities
 
-One device per family member, plus a "Family" device for shared/aggregate entities.
+One device per family member, plus a "Family" device for shared/aggregate entities, and one per
+paired wall screen.
 
 | Entity | Device | Description |
 |---|---|---|
@@ -48,6 +50,8 @@ One device per family member, plus a "Family" device for shared/aggregate entiti
 | `sensor.<member>_points_this_week` | Member | Chore points earned this (household-timezone) week. |
 | `sensor.<member>_chores_remaining_today` | Member | Count of today's chores not yet completed. |
 | `binary_sensor.<member>_<chore>` | Member (or Family for unassigned) | One per chore: **on** once it's completed today, off while open or not due today. Attributes: `due_today`, `points`, `completed_at`, and `checklist` / `checklist_done` / `checklist_total` when the chore has a checklist. The thing to gate automations on ("is the after-school checklist done?"). New chores appear after reloading the integration. |
+| `switch.family_night_screen` | Family | The [Night screen](#night-screen) on every wall screen. |
+| `switch.<display>_night_screen` | Wall screen | The Night screen on one paired display. |
 
 ### Lists
 
@@ -77,14 +81,31 @@ The integration fires `kinwall_<type>` on the Home Assistant event bus for every
 receives (e.g. `kinwall_chore_completed`, `kinwall_events_changed`), with the webhook's `data` payload
 as the event data — use these in automations for anything the built-in entities don't cover directly.
 
+### Night screen
+
+Needs a Kinwall server newer than 1.1.0 (with an older one, or a display key, the switches just
+don't appear). The Night screen switches start the Night screen on Kinwall's wall screens and end
+it again, the same as the moon button on the wall: each wall uses its own Night screen settings and
+stays awake. **Family → Night screen** covers every wall screen, including devices with **Use as a
+wall screen** on; each paired display also gets its own device with a Night screen switch. Turning
+the Family switch on or off resets the per-screen ones.
+
+* Walls start it within 30 seconds and wake within about 10 seconds of the switch going off.
+* A tap on a wall still wakes it (the quiet-hours PIN only during quiet hours). It stays awake until
+  the switch changes again or quiet hours start.
+* "On" runs out on its own after 12 hours, and the switch goes off then too. Use
+  `kinwall.night_screen` with `hours` for longer.
+* Wall screens paired after setup appear after reloading the integration.
+
 ### Actions
 
-All three need the integration's API key to be an **admin** key (a display key gets a clear error). With more than one Kinwall set up, pick one with `config_entry`. Each returns Kinwall's answer (`response_variable`).
+All four need the integration's API key to be an **admin** key (a display key gets a clear error). With more than one Kinwall set up, pick one with `config_entry`. Each returns Kinwall's answer (`response_variable`).
 
 | Action | What it does |
 |---|---|
 | `kinwall.import_recipe` | Adds a recipe to Kinwall's recipe library from another app, such as a meal kit, or updates it when the same `source` + `external_id` was imported before. Fields: `source` (default `hellofresh`), `external_id`, `name`, `description`, `source_url` (recipe card), `image_url`, `servings` (what the amounts are for), `ingredients` (lines like `"1.5 tablespoon Sour Cream"`, or `{text, pantry, category}` where `pantry: false` means it ships in the kit and stays off grocery lists), `steps` (text, or `{text, bullets, image_url, title, timers}` with the step's short instructions, photo, a short heading (`caption` works too) and timers as `[{name, minutes}]`; a text of several lines becomes bullets; titles and timers need a Kinwall server newer than 1.0.2), and optionally `plan_date` + `plan_slot` (default `dinner`) + `plan_servings` to plan it, and `plan_calendar_id` (a Kinwall calendar ID; empty = none) to also put the planned meal on that calendar at the family's usual time for that meal, unless it already has an event. Returns `{recipeId, created, planned, mealId?, reason?, calendarEventId?, calendarError?}`: `planned: false` with a `reason` when that slot already has a meal; `calendarError` says why the meal got no event. |
 | `kinwall.sync_events` | Keeps a set of events on a Kinwall calendar made in Kinwall (not a synced one): `calendar_id`, `source` (default `home_assistant`; names the set, e.g. `ha:hellofresh`), `events` (every event the source has now: `{external_id, title, start, end, all_day, notes, location}`; all-day events take dates with the end the day after the last day, timed ones date-times, in Home Assistant's time zone without an offset), and optionally `from` + `to` (dates). New events are added, changed ones updated, and ones of that source missing from the list removed; with `from`/`to`, only those starting in that window are removed, so past ones stay. Events made in Kinwall and events of other sources are never touched, and sending the same list again changes nothing. Returns `{created, updated, deleted}`. Needs a Kinwall server newer than 1.0.2. |
+| `kinwall.night_screen` | Starts (`on: true`) or ends (`on: false`) the Night screen. `displays`: wall screens by their Night screen switch (or a paired display's name or Kinwall ID); leave it empty for every wall screen. `hours`: when "on" runs out on its own (default 12). Returns `{all, displays}`, the state of every wall screen. Needs a Kinwall server newer than 1.1.0. |
 | `kinwall.plan_meal` | Plans a meal: `date`, `slot` (default `dinner`), and a `recipe_id` (such as `recipeId` from `import_recipe`) or a `title` for a free-form meal, plus optional `servings` and `notes`. Returns the meal. |
 
 ## Example automations
@@ -213,3 +234,4 @@ Keeps your HelloFresh deliveries on a Kinwall calendar, checked every three hour
 3. Import the blueprint and create an automation from it with that **Kinwall calendar ID**. **Weeks ahead** (default 6) is how far ahead deliveries show; **Remind me to pick meals** (default on) adds the deadline reminders.
 
 Each run replaces what it put on the calendar from today through the weeks ahead, so a skipped or cancelled delivery disappears and a changed window or pick updates its event. Past deliveries stay, and events you add yourself on that calendar are never changed. If HelloFresh returns no weeks (for example while it's signed out), the run stops without changing anything. Needs a Kinwall server newer than 1.0.2 and Home Assistant 2025.4 or later.
+

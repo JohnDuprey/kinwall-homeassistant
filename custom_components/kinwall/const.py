@@ -40,4 +40,5 @@ ALL_WEBHOOK_EVENTS = [
     "list.changed",
     "list.item.changed",
     "settings.changed",
+    "display.night_screen",
 ]

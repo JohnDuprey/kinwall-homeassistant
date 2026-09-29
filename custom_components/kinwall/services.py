@@ -1,4 +1,5 @@
-"""Actions: import a recipe (e.g. a meal kit's), plan a meal, and sync events into a Kinwall calendar."""
+"""Actions: import a recipe (e.g. a meal kit's), plan a meal, sync events into a Kinwall calendar, and
+start or end the Night screen on wall screens."""
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -9,10 +10,12 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .api import KinwallApiError, KinwallAuthError, KinwallClient
 from .const import DOMAIN
+from .coordinator import KinwallCoordinator
 
 ATTR_CONFIG_ENTRY = "config_entry"
 SLOTS = ["breakfast", "lunch", "dinner", "snack"]
@@ -100,7 +103,11 @@ PLAN_MEAL_SCHEMA = vol.All(
 
 
 def _client(hass: HomeAssistant, call: ServiceCall) -> KinwallClient:
-    """The client of the chosen entry, or of the only loaded one."""
+    return _coordinator(hass, call).client
+
+
+def _coordinator(hass: HomeAssistant, call: ServiceCall) -> KinwallCoordinator:
+    """The coordinator of the chosen entry, or of the only loaded one."""
     entries = [e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED]
     wanted = call.data.get(ATTR_CONFIG_ENTRY)
     if wanted:
@@ -111,7 +118,7 @@ def _client(hass: HomeAssistant, call: ServiceCall) -> KinwallClient:
         raise ServiceValidationError(
             "No Kinwall entry is loaded" if not entries else "More than one Kinwall is set up: choose one with config_entry"
         )
-    return hass.data[DOMAIN][entries[0].entry_id].client
+    return hass.data[DOMAIN][entries[0].entry_id]
 
 
 async def _call(what: str, request) -> Any:
@@ -124,7 +131,7 @@ async def _call(what: str, request) -> Any:
         if err.status == 403:
             raise HomeAssistantError(
                 f"Kinwall refused to {what}: the integration's API key is a display key. "
-                "The meal planner needs an admin key (Kinwall Settings → Access → API keys); reconfigure the integration with one."
+                "This needs an admin key (Kinwall Settings → Access → API keys); reconfigure the integration with one."
             ) from err
         raise HomeAssistantError(f"Kinwall could not {what}: {err.reason or err}") from err
 
@@ -197,7 +204,52 @@ async def _sync_events(call: ServiceCall) -> ServiceResponse:
     return await _call("sync the events", _client(call.hass, call).sync_events(d["calendar_id"], payload))
 
 
+NIGHT_SCREEN_SCHEMA = vol.Schema({
+    vol.Optional(ATTR_CONFIG_ENTRY): cv.string,
+    vol.Required("on"): cv.boolean,
+    vol.Optional("displays", default=list): vol.All(cv.ensure_list, [cv.string]),
+    vol.Optional("hours"): vol.All(vol.Coerce(float), vol.Range(min=0, min_included=False, max=168)),
+})
+
+
+async def set_night_screen(coordinator: KinwallCoordinator, on: bool, displays: list[str] | None, hours: float | None = None) -> dict[str, Any]:
+    """Start or end it (displays None = every wall screen) and show the new state right away."""
+    what = f"{'start' if on else 'end'} the Night screen"
+    state = await _call(what, coordinator.client.set_night_screen(on, displays, hours))
+    coordinator.data.night_screen = state
+    coordinator.async_set_updated_data(coordinator.data)
+    return state
+
+
+def _display_ids(hass: HomeAssistant, coordinator: KinwallCoordinator, values: list[str]) -> list[str] | None:
+    """Kinwall display IDs from switch entities, display names or IDs. None = every wall screen."""
+    known = (coordinator.data.night_screen or {}).get("displays", [])
+    registry = er.async_get(hass)
+    ids: list[str] = []
+    for value in values:
+        if value.startswith("switch."):
+            reg = registry.async_get(value)
+            if not reg or reg.platform != DOMAIN or "_night_screen_" not in reg.unique_id:
+                raise ServiceValidationError(f"{value} is not a Kinwall Night screen switch")
+            ids.append(reg.unique_id.split("_night_screen_", 1)[1])
+            continue
+        found = next((d["id"] for d in known if d["id"] == value or d["name"].lower() == value.strip().lower()), None)
+        if found is None and known:
+            raise ServiceValidationError(f"Kinwall has no paired display called {value}")
+        ids.append(found or value)
+    if "all" in ids:
+        return None
+    return list(dict.fromkeys(ids)) or None
+
+
+async def _night_screen(call: ServiceCall) -> ServiceResponse:
+    coordinator = _coordinator(call.hass, call)
+    d = call.data
+    return await set_night_screen(coordinator, d["on"], _display_ids(call.hass, coordinator, d["displays"]), d.get("hours"))
+
+
 def async_setup_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, "import_recipe", _import_recipe, schema=IMPORT_RECIPE_SCHEMA, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "sync_events", _sync_events, schema=SYNC_EVENTS_SCHEMA, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "plan_meal", _plan_meal, schema=PLAN_MEAL_SCHEMA, supports_response=SupportsResponse.OPTIONAL)
+    hass.services.async_register(DOMAIN, "night_screen", _night_screen, schema=NIGHT_SCREEN_SCHEMA, supports_response=SupportsResponse.OPTIONAL)

@@ -138,6 +138,18 @@ class KinwallClient:
     async def create_meal(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", "/api/meals", json=payload)
 
+    # -- night screen (admin only; Kinwall newer than 1.1.0) -------------
+    async def get_night_screen(self) -> dict[str, Any]:
+        return await self._request("GET", "/api/displays/night-screen")
+
+    async def set_night_screen(self, on: bool, displays: list[str] | None = None, hours: float | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"on": on}
+        if displays:
+            payload["displays"] = displays
+        if hours is not None:
+            payload["hours"] = hours
+        return await self._request("POST", "/api/displays/night-screen", json=payload)
+
     # -- webhooks (admin only) --------------------------------------------
     async def create_webhook(self, url: str, secret: str, events: list[str]) -> dict[str, Any]:
         payload = {"url": url, "secret": secret, "events": events}

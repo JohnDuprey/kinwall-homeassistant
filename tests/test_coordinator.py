@@ -16,6 +16,7 @@ def _mock_full_refresh(aioclient_mock, rev: int):
     aioclient_mock.get(f"{BASE_URL}/api/chores", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/displays/night-screen", status=404)  # a server older than 1.1.0
 
 
 async def test_no_refetch_when_rev_unchanged(hass, aioclient_mock):
@@ -50,6 +51,7 @@ async def test_refetch_when_rev_changes(hass, aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/api/chores", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[])
+    aioclient_mock.get(f"{BASE_URL}/api/displays/night-screen", status=404)  # a server older than 1.1.0
 
     await coordinator.async_refresh()
     assert coordinator.data.rev == 2
@@ -65,6 +67,7 @@ async def test_fetches_lists_and_one_detail_per_list(hass, aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/api/chores", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/lists", json=[{"id": "l1", "name": "Groceries", "kind": "shopping"}])
+    aioclient_mock.get(f"{BASE_URL}/api/displays/night-screen", status=404)  # a server older than 1.1.0
     aioclient_mock.get(
         f"{BASE_URL}/api/lists/l1",
         json={"list": {"id": "l1"}, "items": [{"id": "i1", "title": "Milk"}], "groups": [], "suggestions": {"stores": [], "categories": []}},

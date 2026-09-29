@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import KinwallAuthError, KinwallClient
+from .api import KinwallApiError, KinwallAuthError, KinwallClient
 from .const import DOMAIN, EVENTS_WINDOW_FUTURE_DAYS, EVENTS_WINDOW_PAST_DAYS
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,6 +28,9 @@ class KinwallData:
     lists: list[dict] = field(default_factory=list)
     # list id -> its items, fetched via one GET /api/lists/{id} per list per refresh.
     list_items: dict[str, list[dict]] = field(default_factory=dict)
+    # GET /api/displays/night-screen: {all, displays}. None when the server has no such endpoint
+    # (older than 1.1.0) or the key can't read it (a display key): no Night screen switches then.
+    night_screen: dict | None = None
 
 
 class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
@@ -82,6 +85,10 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
             for lst in lists:
                 detail = await self.client.get_list_detail(lst["id"])
                 list_items[lst["id"]] = detail["items"]
+            try:
+                night_screen = await self.client.get_night_screen()
+            except KinwallApiError:
+                night_screen = None
         except KinwallAuthError as err:
             raise ConfigEntryAuthFailed("Kinwall API key rejected") from err
         except Exception as err:  # noqa: BLE001
@@ -96,4 +103,5 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
             chores_today=chores_today,
             lists=lists,
             list_items=list_items,
+            night_screen=night_screen,
         )
