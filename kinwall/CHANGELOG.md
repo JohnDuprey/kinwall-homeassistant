@@ -2,6 +2,10 @@
 
 The add-on version is the Kinwall server version it runs (`ghcr.io/johnduprey/kinwall:<version>`).
 
+## 1.0.3
+
+- Fixed: adding a passkey failed with "Unexpected registration response origin" when Home Assistant serves https itself (for example on port 8443). Kinwall now accepts the https address of the host the request came in on.
+
 ## 1.0.2
 
 - Fixed: the add-on could not start because `/data` is mounted root-owned and the server runs as an unprivileged user (`EACCES` on `/data/encryption.key`). The container now makes `/data` writable, then drops privileges.
