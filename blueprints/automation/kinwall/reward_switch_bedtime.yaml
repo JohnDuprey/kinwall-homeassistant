@@ -5,8 +5,9 @@ blueprint:
     Switch's bedtime later for the rest of the day, then put it back at midnight.
 
     Set up in Kinwall: Settings → Access → Webhooks → New webhook, with this automation's webhook
-    URL and the events reward.redeemed and reward.approved. A reward that needs a parent's OK
-    counts once it's approved; one that doesn't counts right away.
+    URL and the events reward.given, reward.redeemed and reward.approved. By default the bedtime
+    moves when a parent taps Mark given; choose "When it's approved" to move it as soon as the
+    reward is approved (a reward redeemed on a parent's device is approved right away).
 
     Needs the Nintendo Switch parental controls integration, plus one Toggle helper you create
     first, which notes the bedtime was moved today so midnight only resets it after a reward.
@@ -26,6 +27,17 @@ blueprint:
       default: Nintendo Switch
       selector:
         text:
+    move_when:
+      name: Move the bedtime
+      description: When the reward counts.
+      default: given
+      selector:
+        select:
+          options:
+            - label: When a parent marks it given
+              value: given
+            - label: When it's approved
+              value: approved
     member_id:
       name: Only for this Kinwall member (optional)
       description: A Kinwall member ID. Leave empty to count the reward for anyone.
@@ -77,6 +89,7 @@ triggers:
 variables:
   reward_title: !input reward_title
   member_id: !input member_id
+  move_when: !input move_when
   bedtime_entity: !input bedtime_entity
   new_bedtime: !input new_bedtime
   usual_bedtime: !input usual_bedtime
@@ -87,13 +100,15 @@ actions:
       - conditions:
           - condition: trigger
             id: reward
-          # reward.approved, or reward.redeemed that needed no OK (status approved).
+          # "given": reward.given. "approved": reward.approved, or reward.redeemed that needed no OK
+          # (status approved, including one redeemed on a parent's device).
           - condition: template
             value_template: >-
               {% set j = trigger.json if trigger.json is defined else {} %}
               {% set d = j.get('data', {}) %}
-              {{ (j.get('type') == 'reward.approved'
-                  or (j.get('type') == 'reward.redeemed' and d.get('status') == 'approved'))
+              {% set t = j.get('type') %}
+              {{ (t == 'reward.given' if move_when == 'given'
+                  else (t == 'reward.approved' or (t == 'reward.redeemed' and d.get('status') == 'approved')))
                  and reward_title | lower in (d.get('title') or '') | lower
                  and (member_id == '' or d.get('memberId') == member_id) }}
         sequence:

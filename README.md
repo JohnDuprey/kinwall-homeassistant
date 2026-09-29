@@ -207,9 +207,9 @@ When someone gets a chosen Kinwall reward (say "Nintendo Switch"), move a Switch
 1. Set up the **Nintendo Switch parental controls** integration and find the Switch's **Bedtime alarm** entity.
 2. Create a **Toggle** helper, for example "Switch bedtime moved".
 3. Import the blueprint and create an automation from it. Pick a long random **Webhook ID**, the reward name, the bedtime entity and the toggle.
-4. In Kinwall, go to **Settings → Access → Webhooks → New webhook**. Use your Home Assistant webhook URL (`https://<your Home Assistant>/api/webhook/<Webhook ID>`, or your Home Assistant Cloud webhook URL) and choose the events `reward.redeemed` and `reward.approved`. Hosted Kinwall needs a URL reachable from the internet.
+4. In Kinwall, go to **Settings → Access → Webhooks → New webhook**. Use your Home Assistant webhook URL (`https://<your Home Assistant>/api/webhook/<Webhook ID>`, or your Home Assistant Cloud webhook URL) and choose the events `reward.given`, `reward.redeemed` and `reward.approved`. Hosted Kinwall needs a URL reachable from the internet.
 
-A reward that needs a parent's OK moves the bedtime once it's approved; one that doesn't moves it right away. Anyone who knows the webhook URL can trigger it, so keep the Webhook ID secret.
+By default the bedtime moves when a parent taps **Mark given** on the reward. Set **Move the bedtime** to "When it's approved" to move it as soon as the reward is approved instead (a reward redeemed on a parent's device, or one with no OK needed, is approved right away). Anyone who knows the webhook URL can trigger it, so keep the Webhook ID secret.
 
 ### Weekly meal kit import (HelloFresh)
 
