@@ -97,6 +97,9 @@ the Family switch on or off resets the per-screen ones.
   `kinwall.night_screen` with `hours` for longer.
 * Wall screens paired after setup appear after reloading the integration.
 
+See the [Night screen while nobody's home](#kinwall-night-screen-while-nobodys-home) blueprint for
+the usual automation.
+
 ### Actions
 
 All four need the integration's API key to be an **admin** key (a display key gets a clear error). With more than one Kinwall set up, pick one with `config_entry`. Each returns Kinwall's answer (`response_variable`).
@@ -235,3 +238,19 @@ Keeps your HelloFresh deliveries on a Kinwall calendar, checked every three hour
 
 Each run replaces what it put on the calendar from today through the weeks ahead, so a skipped or cancelled delivery disappears and a changed window or pick updates its event. Past deliveries stay, and events you add yourself on that calendar are never changed. If HelloFresh returns no weeks (for example while it's signed out), the run stops without changing anything. Needs a Kinwall server newer than 1.0.2 and Home Assistant 2025.4 or later.
 
+### Kinwall Night screen while nobody's home
+
+Start the Night screen on the wall screens once nobody's home, and wake them as soon as someone
+arrives. While you're out, the walls show a dim clock (or their Night screen slideshow) instead of
+the calendar.
+
+[![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Fnight_screen_away.yaml)
+
+1. Set up this integration with an **admin** API key, against a Kinwall server newer than 1.1.0.
+2. Import the blueprint and create an automation from it. **Who has to be away** is `zone.home` by
+   default (0 people home), or pick a person or a group of people (a person in another zone counts
+   as away). **Wall screens** is empty for every wall screen, or pick their Night screen switches.
+   **Wait before starting** (default 5 minutes) keeps a quick trip outside from dimming the walls,
+   and **Runs out after** (default 12 hours) ends it on its own if nobody comes home.
+
+A tap on a wall still wakes it while you're out.

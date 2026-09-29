@@ -22,6 +22,7 @@ REQUIRED_INPUTS = {
     "reward_switch_bedtime.yaml": {"webhook_id": "abc", "bedtime_entity": "time.switch_bedtime", "moved_today": "input_boolean.moved"},
     "meal_kit_import.yaml": {},
     "meal_kit_deliveries.yaml": {"calendar_id": "cal-1"},
+    "night_screen_away.yaml": {},
 }
 
 
@@ -270,3 +271,15 @@ async def test_meal_kit_deliveries_runs_end_to_end(hass, freezer):
     weeks["value"] = {"error": "not logged in"}
     await run()
     assert len(synced) == 1
+
+
+@pytest.mark.parametrize(("state", "away", "home"), [
+    ("not_home", True, False), ("Work", True, False), ("home", False, True),  # a person or a group of people
+    ("0", True, False), ("2", False, True),  # zone.home counts people
+    ("unavailable", False, False), ("unknown", False, False),
+])
+async def test_night_screen_away_and_home(hass, state, away, home):
+    triggers = load_yaml(BLUEPRINTS / "night_screen_away.yaml")["triggers"]
+    hass.states.async_set("zone.home", state)
+    by_id = {t["id"]: Template(t["value_template"], hass).async_render({"presence": "zone.home"}) for t in triggers}
+    assert (by_id["away"], by_id["home"]) == (away, home)

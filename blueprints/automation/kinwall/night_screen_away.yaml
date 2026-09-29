@@ -1,0 +1,72 @@
+blueprint:
+  name: Kinwall Night screen while nobody's home
+  description: >-
+    Start the Night screen on Kinwall's wall screens once nobody's home, and wake them again as soon
+    as someone arrives. A tap still wakes a wall while you're out.
+
+    Pick who counts: a person, a group of people, or zone.home (the number of people at home).
+    Needs the Kinwall integration with an admin API key, and a Kinwall server newer than 1.1.0.
+  domain: automation
+  source_url: https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/blueprints/automation/kinwall/night_screen_away.yaml
+  input:
+    presence:
+      name: Who has to be away
+      description: >-
+        A person, a group of people, or zone.home. Away means not home (a person in another zone
+        counts as away), or 0 people for zone.home.
+      default: zone.home
+      selector:
+        entity:
+          domain: [person, group, zone]
+    wall_screens:
+      name: Wall screens (optional)
+      description: The wall screens' Night screen switches. Leave empty for every wall screen.
+      default: []
+      selector:
+        entity:
+          integration: kinwall
+          domain: switch
+          multiple: true
+    delay:
+      name: Wait before starting
+      description: How long everyone has to be away before the Night screen starts, so a quick trip to the mailbox doesn't count.
+      default:
+        minutes: 5
+      selector:
+        duration:
+    hours:
+      name: Runs out after
+      description: Hours until the Night screen ends by itself if nobody comes home. Kinwall's default is 12.
+      default: 12
+      selector:
+        number:
+          min: 1
+          max: 168
+          unit_of_measurement: h
+          mode: box
+
+mode: queued
+max_exceeded: silent
+
+trigger_variables:
+  presence: !input presence
+
+triggers:
+  - trigger: template
+    value_template: >-
+      {% set s = states(presence) %}
+      {{ s not in ['home', 'on', 'unknown', 'unavailable'] and not s | int(0) > 0 }}
+    for: !input delay
+    id: away
+  - trigger: template
+    value_template: >-
+      {% set s = states(presence) %}
+      {{ s in ['home', 'on'] or s | int(0) > 0 }}
+    id: home
+
+actions:
+  - action: kinwall.night_screen
+    data:
+      "on": "{{ trigger.id == 'away' }}"
+      displays: !input wall_screens
+      hours: !input hours
