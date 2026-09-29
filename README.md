@@ -21,8 +21,11 @@ separate repo; this repo has:
 
 ## Install the add-on
 
-Settings → Add-ons → Add-on Store → ⋮ → Repositories → add
-`https://github.com/JohnDuprey/kinwall-homeassistant`, then install "Kinwall" from the store. See
+Settings → Apps → the store → ⋮ → Repositories → add
+`https://github.com/JohnDuprey/kinwall-homeassistant`, then install "Kinwall" from the store.
+Older Home Assistant versions call apps *add-ons* (Settings → Add-ons → Add-on Store). This is a
+Home Assistant app, installed from the app store rather than HACS; HACS is for the Kinwall
+integration below. Turn on **Show in sidebar**: Kinwall shows up as **Family**. See
 [`kinwall/DOCS.md`](kinwall/DOCS.md) for configuration and iPad kiosk setup.
 
 ## Configuration
