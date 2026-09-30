@@ -1,4 +1,4 @@
-"""Diagnostics support for Kinwall (API key redacted)."""
+"""Diagnostics support for Kinwall (API key, webhook secret, ids and URL redacted)."""
 from __future__ import annotations
 
 from typing import Any
@@ -7,10 +7,11 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_KINWALL_WEBHOOK_SECRET, DOMAIN
+from .const import CONF_KINWALL_WEBHOOK_SECRET, CONF_KINWALL_WEBHOOK_URL, CONF_WEBHOOK_ID, DOMAIN
 from .coordinator import KinwallCoordinator
 
-TO_REDACT = {"api_key", CONF_KINWALL_WEBHOOK_SECRET}
+# The HA webhook id (and the URL that carries it) is what lets anyone post to the webhook.
+TO_REDACT = {"api_key", CONF_KINWALL_WEBHOOK_SECRET, CONF_WEBHOOK_ID, CONF_KINWALL_WEBHOOK_URL}
 
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:

@@ -8,6 +8,7 @@ CONF_WEBHOOK_ID = "webhook_id"
 CONF_KINWALL_WEBHOOK_ID = "kinwall_webhook_id"
 CONF_KINWALL_WEBHOOK_SECRET = "kinwall_webhook_secret"
 CONF_KINWALL_WEBHOOK_URL = "kinwall_webhook_url"  # the callback we registered; re-registered when HA's URL changes
+CONF_KINWALL_WEBHOOK_EVENTS = "kinwall_webhook_events"  # the events it was registered with; re-registered when ALL_WEBHOOK_EVENTS changes
 
 DEFAULT_POLL_INTERVAL = 30  # seconds
 OPT_POLL_INTERVAL = "poll_interval"
@@ -28,7 +29,9 @@ SIGNATURE_HEADER = "X-Kinwall-Signature"
 # "kinwall_chore_completed".
 EVENT_PREFIX = "kinwall_"
 
-# All bus event types the server can emit (server/src/bus.ts BusEventType).
+# The server's bus events (server/src/bus.ts BusEventType) HA subscribes to. Each one fires
+# kinwall_<type> on HA's bus once its signature checks out. Changing this list re-registers the
+# Kinwall webhook on the next setup.
 ALL_WEBHOOK_EVENTS = [
     "member.changed",
     "calendar.changed",
@@ -41,4 +44,7 @@ ALL_WEBHOOK_EVENTS = [
     "list.item.changed",
     "settings.changed",
     "display.night_screen",
+    "reward.redeemed",  # the Switch bedtime blueprint
+    "reward.approved",
+    "reward.given",
 ]

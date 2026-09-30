@@ -35,7 +35,10 @@ integration below. Turn on **Show in sidebar**: Kinwall shows up as **Family**. 
 - **Points for chores created from Home Assistant** (integration Options, default 5): every chore added from an HA to-do list or an automation (`todo.add_item`) gets this many points.
 - **Poll interval** (integration Options, default 30s): how often the integration checks
   `GET /api/rev`. Real-time updates don't depend on this — the integration also registers a Kinwall
-  webhook and refreshes immediately when the server pushes a change.
+  webhook and refreshes immediately when the server pushes a change. Every push is signed with a
+  secret only Home Assistant and your Kinwall know; one that isn't signed, or doesn't match, is
+  refused. Since 1.6.0 an older setup gets a secret (and a new Kinwall webhook) on its own when it
+  next loads. Diagnostics leave out the API key, the webhook secret, its ID and its URL.
 
 ## Entities
 
@@ -80,8 +83,9 @@ overwritten.
 
 ### Events
 
-The integration fires `kinwall_<type>` on the Home Assistant event bus for every Kinwall webhook it
-receives (e.g. `kinwall_chore_completed`, `kinwall_events_changed`), with the webhook's `data` payload
+The integration fires `kinwall_<type>` on the Home Assistant event bus for every signed Kinwall webhook it
+receives (e.g. `kinwall_chore_completed`, `kinwall_events_changed`, and since 1.6.0
+`kinwall_reward_redeemed`, `kinwall_reward_approved` and `kinwall_reward_given`), with the webhook's `data` payload
 as the event data — use these in automations for anything the built-in entities don't cover directly.
 
 ### Night screen

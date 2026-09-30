@@ -94,3 +94,76 @@ async def test_chore_binary_sensor_reflects_todays_completion(hass, aioclient_mo
     assert done.attributes["checklist_done"] == 4 and done.attributes["due_today"] is True
     bins = hass.states.get("binary_sensor.alice_bins")
     assert bins is not None and bins.state == "off" and bins.attributes["due_today"] is False
+
+
+async def test_secret_made_before_the_webhook_even_without_a_url(hass, aioclient_mock):
+    """No HA URL for Kinwall to call: the HA webhook is still registered, so it needs a secret first."""
+    from custom_components.kinwall.const import CONF_KINWALL_WEBHOOK_SECRET
+
+    _mock_full_refresh(aioclient_mock)
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_URL: BASE_URL, CONF_API_KEY: "fc_key"})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert len(entry.data[CONF_KINWALL_WEBHOOK_SECRET]) == 64
+
+
+async def test_entry_without_a_secret_gets_one_and_a_new_kinwall_webhook(hass, aioclient_mock):
+    """Older entries with a Kinwall webhook but no secret: replace that webhook with a signed one."""
+    from custom_components.kinwall.const import CONF_KINWALL_WEBHOOK_SECRET, CONF_KINWALL_WEBHOOK_URL
+
+    _mock_full_refresh(aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/webhooks", json={"id": "wh_signed"})
+    aioclient_mock.delete(f"{BASE_URL}/api/webhooks/wh_unsigned", json={"ok": True})
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    entry = MockConfigEntry(domain=DOMAIN, data={
+        CONF_URL: BASE_URL, CONF_API_KEY: "fc_key", CONF_WEBHOOK_ID: "hook1",
+        CONF_KINWALL_WEBHOOK_ID: "wh_unsigned", CONF_KINWALL_WEBHOOK_URL: "http://192.168.1.10:8123/api/webhook/hook1",
+    })
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.data[CONF_KINWALL_WEBHOOK_ID] == "wh_signed"
+    secret = entry.data[CONF_KINWALL_WEBHOOK_SECRET]
+    assert len(secret) == 64
+    assert any(m == "DELETE" and str(u).endswith("/api/webhooks/wh_unsigned") for m, u, *_ in aioclient_mock.mock_calls)
+    posts = [d for m, u, d, *_ in aioclient_mock.mock_calls if m == "POST" and str(u).endswith("/api/webhooks")]
+    assert posts[-1]["secret"] == secret
+
+
+async def test_diagnostics_redact_the_webhook_ids_and_url(hass, aioclient_mock):
+    """Anyone with the HA webhook id (or Kinwall's copy of its URL) could post to it."""
+    from custom_components.kinwall.diagnostics import async_get_config_entry_diagnostics
+
+    _mock_full_refresh(aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/webhooks", json={"id": "wh_server_1"})
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_URL: BASE_URL, CONF_API_KEY: "fc_key"})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    data = (await async_get_config_entry_diagnostics(hass, entry))["entry_data"]
+    for key in ("api_key", "webhook_id", "kinwall_webhook_secret", "kinwall_webhook_url"):
+        assert data[key] == "**REDACTED**", key
+
+
+async def test_kinwall_webhook_replaced_when_the_events_list_grows(hass, aioclient_mock):
+    """A webhook registered before the reward events were added is replaced once, with them."""
+    from custom_components.kinwall.const import ALL_WEBHOOK_EVENTS, CONF_KINWALL_WEBHOOK_SECRET, CONF_KINWALL_WEBHOOK_URL
+
+    _mock_full_refresh(aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/webhooks", json={"id": "wh_new"})
+    aioclient_mock.delete(f"{BASE_URL}/api/webhooks/wh_old", json={"ok": True})
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    entry = MockConfigEntry(domain=DOMAIN, data={
+        CONF_URL: BASE_URL, CONF_API_KEY: "fc_key", CONF_WEBHOOK_ID: "hook1",
+        CONF_KINWALL_WEBHOOK_ID: "wh_old", CONF_KINWALL_WEBHOOK_SECRET: "s", CONF_KINWALL_WEBHOOK_URL: "http://192.168.1.10:8123/api/webhook/hook1",
+    })
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.data[CONF_KINWALL_WEBHOOK_ID] == "wh_new"
+    posts = [d for m, u, d, *_ in aioclient_mock.mock_calls if m == "POST" and str(u).endswith("/api/webhooks")]
+    assert {"reward.given", "reward.approved", "reward.redeemed"} <= set(posts[-1]["events"])
+    assert posts[-1]["events"] == ALL_WEBHOOK_EVENTS

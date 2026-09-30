@@ -24,6 +24,7 @@ from homeassistant.helpers.typing import ConfigType
 from .api import KinwallApiError, KinwallClient
 from .const import (
     ALL_WEBHOOK_EVENTS,
+    CONF_KINWALL_WEBHOOK_EVENTS,
     CONF_KINWALL_WEBHOOK_ID,
     CONF_KINWALL_WEBHOOK_SECRET,
     CONF_KINWALL_WEBHOOK_URL,
@@ -109,6 +110,13 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
     if not webhook_id:
         webhook_id = webhook.async_generate_id()
         new_data[CONF_WEBHOOK_ID] = webhook_id
+    # The secret comes before the HA webhook exists: _handle_webhook refuses everything without
+    # one. An older entry that has none gets one now, and any Kinwall webhook it registered
+    # without it is replaced below with one that signs.
+    unsigned = not secret
+    if unsigned:
+        secret = secrets.token_hex(32)
+        new_data[CONF_KINWALL_WEBHOOK_SECRET] = secret
 
     remote = not _is_private_host(entry.data[CONF_URL])
     try:
@@ -140,16 +148,21 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
 
     callback_url = f"{base_url}{webhook.async_generate_path(webhook_id)}"
 
-    # HA's URL changed since we registered (external URL set or corrected): replace the webhook.
-    if kinwall_webhook_id and entry.data.get(CONF_KINWALL_WEBHOOK_URL) not in (None, callback_url):
+    # HA's URL changed since we registered (external URL set or corrected), that webhook had no
+    # secret, or it predates events added to ALL_WEBHOOK_EVENTS: replace it.
+    stale = (
+        unsigned
+        or entry.data.get(CONF_KINWALL_WEBHOOK_URL) not in (None, callback_url)
+        or entry.data.get(CONF_KINWALL_WEBHOOK_EVENTS) != ALL_WEBHOOK_EVENTS
+    )
+    if kinwall_webhook_id and stale:
         try:
             await client.delete_webhook(kinwall_webhook_id)
         except KinwallApiError as err:
             _LOGGER.debug("Kinwall: old webhook %s not removed: %s", kinwall_webhook_id, err)
         kinwall_webhook_id = None
 
-    if not kinwall_webhook_id or not secret:
-        secret = secrets.token_hex(32)
+    if not kinwall_webhook_id:
         try:
             created = await client.create_webhook(callback_url, secret, ALL_WEBHOOK_EVENTS)
             kinwall_webhook_id = created["id"]
@@ -157,8 +170,8 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
             _LOGGER.warning("Kinwall: failed to register server-side webhook at %s: %s", callback_url, err)
             kinwall_webhook_id = None
         new_data[CONF_KINWALL_WEBHOOK_ID] = kinwall_webhook_id
-        new_data[CONF_KINWALL_WEBHOOK_SECRET] = secret
         new_data[CONF_KINWALL_WEBHOOK_URL] = callback_url if kinwall_webhook_id else None
+        new_data[CONF_KINWALL_WEBHOOK_EVENTS] = list(ALL_WEBHOOK_EVENTS) if kinwall_webhook_id else None
 
     if new_data != entry.data:
         hass.config_entries.async_update_entry(entry, data=new_data)
@@ -192,13 +205,13 @@ async def _handle_webhook(hass: HomeAssistant, webhook_id: str, request: Request
     if entry is None:
         return Response(status=404)
 
+    # Fail closed: no secret means nothing can be verified, so nothing is accepted.
     secret = entry.data.get(CONF_KINWALL_WEBHOOK_SECRET)
     signature = request.headers.get(SIGNATURE_HEADER, "")
-    if secret:
-        expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(expected, signature):
-            _LOGGER.warning("Kinwall: rejected webhook with invalid signature")
-            return Response(status=401)
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest() if secret else ""
+    if not secret or not hmac.compare_digest(expected, signature):
+        _LOGGER.warning("Kinwall: rejected webhook with a missing or invalid signature")
+        return Response(status=401)
 
     try:
         payload = json.loads(body)

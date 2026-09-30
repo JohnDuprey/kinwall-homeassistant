@@ -66,3 +66,18 @@ async def test_webhook_accepts_good_signature_and_fires_event(hass):
     assert resp.status == 200
     assert len(events) == 1
     assert events[0].data == {"id": "c1"}
+
+
+async def test_webhook_without_a_stored_secret_is_refused(hass):
+    """No secret must mean no delivery (fail closed), not an unsigned one."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_URL: "http://kinwall.local:8080", CONF_API_KEY: "fc_key", CONF_WEBHOOK_ID: "wh2"})
+    entry.add_to_hass(hass)
+    body = json.dumps({"type": "reward.given", "data": {}}).encode()
+
+    events = []
+    hass.bus.async_listen("kinwall_reward_given", lambda event: events.append(event))
+    resp = await _handle_webhook(hass, "wh2", _request(body, ""))
+    await hass.async_block_till_done()
+
+    assert resp.status == 401
+    assert events == []
