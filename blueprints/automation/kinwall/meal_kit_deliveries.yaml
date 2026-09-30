@@ -2,15 +2,15 @@ blueprint:
   name: Kinwall meal kit deliveries (HelloFresh)
   description: >-
     Keeps your HelloFresh deliveries on a Kinwall calendar: a "📦 HelloFresh delivery" event on
-    each delivery day (in your delivery window when HelloFresh gives one, otherwise all day), with
-    the meals you picked in its notes, and a "Pick HelloFresh meals" reminder before each
+    each delivery day (in your delivery window when HelloFresh gives one, otherwise all day, shown
+    as free by default), with the meals you picked in its notes, and a "Pick HelloFresh meals" reminder before each
     selection deadline for a box that still needs picks.
 
     It runs every three hours and when Home Assistant starts. Skipped weeks and deliveries that
     go away are removed from the calendar; past deliveries stay. Events you add yourself on that
     calendar are never touched.
 
-    Needs the HelloFresh integration for Home Assistant and the Kinwall integration (1.5.0 or
+    Needs the HelloFresh integration for Home Assistant and the Kinwall integration (1.7.0 or
     later) set up with an admin API key, on a Kinwall server newer than 1.0.2.
   domain: automation
   homeassistant:
@@ -34,6 +34,16 @@ blueprint:
           min: 1
           max: 12
           mode: box
+    deliveries_free:
+      name: Show deliveries as free
+      description: >-
+        Put deliveries on the calendar as free, like "Show as: Free" in Google or Outlook: they
+        show (striped and marked "Free"), but a delivery window isn't "Now" all day and gets no
+        leave-by. Turn off to show them as busy. Needs a Kinwall server with free/busy events; an
+        older one shows them as busy.
+      default: true
+      selector:
+        boolean:
     include_deadlines:
       name: Remind me to pick meals
       description: >-
@@ -56,6 +66,7 @@ triggers:
 variables:
   calendar_id: !input calendar_id
   weeks_ahead: !input weeks_ahead
+  deliveries_free: !input deliveries_free
   include_deadlines: !input include_deadlines
 
 actions:
@@ -83,6 +94,7 @@ actions:
             {% set count = w.meals_selected if w.meals_selected is number else picked | count %}
             {% set tally = (count ~ ' of ' ~ w.meals_required ~ ' meals picked') if w.meals_required is number else (count ~ ' meals picked') %}
             {% set event = {'external_id': 'delivery-' ~ w.week_id, 'title': '📦 HelloFresh delivery', 'notes': (names + [tally]) | join('\n')} %}
+            {% if deliveries_free %}{% set event = event | combine({'busy': false}) %}{% endif %}
             {% set window = (w.slot_label or '') | regex_findall('(\\d{1,2})(?::(\\d{2}))?\\s*([AaPp])\\.?[Mm]\\.?\\s*[-–—to]+\\s*(\\d{1,2})(?::(\\d{2}))?\\s*([AaPp])\\.?[Mm]') %}
             {% set d = strptime(day, '%Y-%m-%d').date() %}
             {% if window %}

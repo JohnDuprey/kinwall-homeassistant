@@ -105,7 +105,7 @@ sync_events:
       selector:
         date:
     events:
-      example: '[{"external_id": "delivery-2026-W41", "title": "HelloFresh delivery", "start": "2026-10-07T08:00:00", "end": "2026-10-07T20:00:00", "notes": "Tacos"}, {"external_id": "deadline-2026-W41", "title": "Pick HelloFresh meals", "start": "2026-10-02", "end": "2026-10-03", "all_day": true}]'
+      example: '[{"external_id": "delivery-2026-W41", "title": "HelloFresh delivery", "start": "2026-10-07T08:00:00", "end": "2026-10-07T20:00:00", "notes": "Tacos", "busy": false}, {"external_id": "deadline-2026-W41", "title": "Pick HelloFresh meals", "start": "2026-10-02", "end": "2026-10-03", "all_day": true}]'
       selector:
         object:
 

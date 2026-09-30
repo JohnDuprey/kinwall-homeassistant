@@ -94,6 +94,7 @@ async def test_sync_events_puts_the_events_and_returns_the_counts(hass, aioclien
         "events": [
             {"external_id": "delivery-1", "title": "HelloFresh delivery", "start": "2026-10-07T08:00:00", "end": "2026-10-07T20:00:00-04:00", "notes": "Tacos", "location": "Porch"},
             {"external_id": "deadline-1", "title": "Pick meals", "start": "2026-10-02", "end": "2026-10-03", "all_day": True},
+            {"external_id": "window-1", "title": "Window", "start": "2026-10-08T08:00:00", "end": "2026-10-08T20:00:00", "busy": False},
         ],
     }, blocking=True, return_response=True)
     assert response == counts
@@ -102,6 +103,8 @@ async def test_sync_events_puts_the_events_and_returns_the_counts(hass, aioclien
         "events": [
             {"externalId": "delivery-1", "title": "HelloFresh delivery", "start": "2026-10-07T08:00:00-04:00", "end": "2026-10-07T20:00:00-04:00", "allDay": False, "notes": "Tacos", "location": "Porch"},
             {"externalId": "deadline-1", "title": "Pick meals", "start": "2026-10-02", "end": "2026-10-03", "allDay": True},
+            # Show as free: only sent when given, so an older Kinwall server never sees it by default.
+            {"externalId": "window-1", "title": "Window", "start": "2026-10-08T08:00:00-04:00", "end": "2026-10-08T20:00:00-04:00", "allDay": False, "busy": False},
         ],
     }
     # Defaults: source "home_assistant", no window; an empty list clears that source.

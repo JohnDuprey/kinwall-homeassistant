@@ -77,6 +77,7 @@ _EVENT = vol.Schema({
     vol.Optional("all_day", default=False): cv.boolean,
     vol.Optional("notes"): vol.Any(None, cv.string),
     vol.Optional("location"): vol.Any(None, cv.string),
+    vol.Optional("busy"): cv.boolean,
 })
 
 SYNC_EVENTS_SCHEMA = vol.Schema({
@@ -199,6 +200,8 @@ async def _sync_events(call: ServiceCall) -> ServiceResponse:
         for key in ("notes", "location"):
             if e.get(key):
                 event[key] = e[key]
+        if "busy" in e:  # only when given: false shows it as free in Kinwall
+            event["busy"] = e["busy"]
         events.append(event)
     payload["events"] = events
     return await _call("sync the events", _client(call.hass, call).sync_events(d["calendar_id"], payload))

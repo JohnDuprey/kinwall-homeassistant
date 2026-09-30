@@ -267,6 +267,8 @@ async def test_meal_kit_deliveries_runs_end_to_end(hass, freezer):
     assert (call["calendar_id"], call["source"], call["from"].isoformat(), call["to"].isoformat()) == ("cal-1", "ha:hellofresh", "2026-09-28", "2026-10-26")
     assert [e["external_id"] for e in call["events"]] == ["delivery-2026-W41", "deadline-2026-W41", "delivery-2026-W43", "deadline-2026-W43"]
     assert call["events"][0]["start"].isoformat() == "2026-10-07T08:00:00-04:00"
+    # Deliveries show as free by default (a window, not an appointment); the pick-meals reminder stays busy.
+    assert [e.get("busy") for e in call["events"]] == [False, None, False, None]
 
     weeks["value"] = {"error": "not logged in"}
     await run()

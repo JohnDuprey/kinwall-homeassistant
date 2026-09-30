@@ -159,7 +159,7 @@
         },
         "events": {
           "name": "Events",
-          "description": "Every event this source has now: a list of objects with external_id (the source's own ID for it), title, start and end (a date for all-day events, with an end the day after the last day; otherwise a date-time, in Home Assistant's time zone when it has no offset), all_day, and optionally notes and location."
+          "description": "Every event this source has now: a list of objects with external_id (the source's own ID for it), title, start and end (a date for all-day events, with an end the day after the last day; otherwise a date-time, in Home Assistant's time zone when it has no offset), all_day, and optionally notes, location and busy (false shows it as free: on the calendar, but not blocking time)."
         }
       }
     },
