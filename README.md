@@ -213,10 +213,12 @@ When someone gets a chosen Kinwall reward (say "Nintendo Switch"), move a Switch
 
 1. Set up the **Nintendo Switch parental controls** integration and find the Switch's **Bedtime alarm** entity.
 2. Create a **Toggle** helper, for example "Switch bedtime moved".
-3. Import the blueprint and create an automation from it. Pick a long random **Webhook ID**, the reward name, the bedtime entity and the toggle.
-4. In Kinwall, go to **Settings → Access → Webhooks → New webhook**. Use your Home Assistant webhook URL (`https://<your Home Assistant>/api/webhook/<Webhook ID>`, or your Home Assistant Cloud webhook URL) and choose the events `reward.given`, `reward.redeemed` and `reward.approved`. Hosted Kinwall needs a URL reachable from the internet.
+3. Set up the Kinwall integration (1.6.0 or later).
+4. Import the blueprint and create an automation from it. Pick the reward name, the bedtime entity and the toggle.
 
-By default the bedtime moves when a parent taps **Mark given** on the reward. Set **Move the bedtime** to "When it's approved" to move it as soon as the reward is approved instead (a reward redeemed on a parent's device, or one with no OK needed, is approved right away). Anyone who knows the webhook URL can trigger it, so keep the Webhook ID secret.
+The blueprint follows the integration's signed reward events, so only your Kinwall can move the bedtime. By default the bedtime moves when a parent taps **Mark given** on the reward. Set **Move the bedtime** to "When it's approved" to move it as soon as the reward is approved instead (a reward redeemed on a parent's device, or one with no OK needed, is approved right away).
+
+**Upgrading from the webhook version** (before integration 1.6.0): re-import the blueprint (**Settings → Automations & scenes → Blueprints**, then **Re-import blueprint** on it), update the Kinwall integration, and delete the Kinwall webhook you made for it under **Settings → Access → Webhooks**. The old version listened to an unsigned webhook that anyone with its URL could call.
 
 ### Weekly meal kit import (HelloFresh)
 

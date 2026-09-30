@@ -19,7 +19,7 @@ def expected_lingering_timers() -> bool:
 
 BLUEPRINTS = Path(__file__).parent.parent / "blueprints" / "automation" / "kinwall"
 REQUIRED_INPUTS = {
-    "reward_switch_bedtime.yaml": {"webhook_id": "abc", "bedtime_entity": "time.switch_bedtime", "moved_today": "input_boolean.moved"},
+    "reward_switch_bedtime.yaml": {"bedtime_entity": "time.switch_bedtime", "moved_today": "input_boolean.moved"},
     "meal_kit_import.yaml": {},
     "meal_kit_deliveries.yaml": {"calendar_id": "cal-1"},
     "night_screen_away.yaml": {},
@@ -283,3 +283,29 @@ async def test_night_screen_away_and_home(hass, state, away, home):
     hass.states.async_set("zone.home", state)
     by_id = {t["id"]: Template(t["value_template"], hass).async_render({"presence": "zone.home"}) for t in triggers}
     assert (by_id["away"], by_id["home"]) == (away, home)
+
+
+@pytest.mark.parametrize(("move_when", "event", "data", "moves"), [
+    ("given", "kinwall_reward_given", {"title": "Nintendo Switch time", "memberId": "m1"}, True),
+    ("given", "kinwall_reward_approved", {"title": "Nintendo Switch time"}, False),
+    ("given", "kinwall_reward_given", {"title": "Ice cream"}, False),
+    ("approved", "kinwall_reward_approved", {"title": "Nintendo Switch"}, True),
+    ("approved", "kinwall_reward_redeemed", {"title": "Nintendo Switch", "status": "approved"}, True),
+    ("approved", "kinwall_reward_redeemed", {"title": "Nintendo Switch", "status": "pending"}, False),
+])
+async def test_switch_bedtime_follows_the_integrations_signed_events(hass, move_when, event, data, moves):
+    """The trigger is the integration's bus event (from a verified webhook), not a raw webhook."""
+    hass.states.async_set("time.switch_bedtime", "18:00:00")
+    set_values = []
+    hass.services.async_register("time", "set_value", lambda call: set_values.append(call.data["time"]))
+    hass.services.async_register("input_boolean", "turn_on", lambda call: None)
+    blueprint = Blueprint(load_yaml(BLUEPRINTS / "reward_switch_bedtime.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
+    inputs = {**REQUIRED_INPUTS["reward_switch_bedtime.yaml"], "move_when": move_when}
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": inputs}}).async_substitute()
+    assert not any(t.get("trigger") == "webhook" for t in config["triggers"])
+    assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "sw", "alias": "sw"}]})
+    await hass.async_block_till_done()
+
+    hass.bus.async_fire(event, data)
+    await hass.async_block_till_done()
+    assert set_values == (["18:30:00"] if moves else [])
