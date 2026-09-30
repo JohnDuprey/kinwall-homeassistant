@@ -39,6 +39,12 @@ integration below. Turn on **Show in sidebar**: Kinwall shows up as **Family**. 
   secret only Home Assistant and your Kinwall know; one that isn't signed, or doesn't match, is
   refused. Since 1.6.0 an older setup gets a secret (and a new Kinwall webhook) on its own when it
   next loads. Diagnostics leave out the API key, the webhook secret, its ID and its URL.
+- **What a refresh reads** (1.8.0): only what changed. A list change refetches the list overview and
+  the items of the lists that changed (without the shopping suggestions); a chore change refetches
+  chores and points; anything else refetches the calendar too, but not unchanged lists. A burst of
+  pushes is one refresh (or two), and a new day refreshes everything once. This needs a Kinwall
+  server from 2026-09-30 or later; with an older server the integration
+  refreshes everything on each change, as before.
 
 ## Entities
 

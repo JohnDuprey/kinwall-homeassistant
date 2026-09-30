@@ -223,6 +223,7 @@ async def _handle_webhook(hass: HomeAssistant, webhook_id: str, request: Request
 
     coordinator: KinwallCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     if coordinator is not None:
-        await coordinator.async_request_full_refresh()
+        # Debounced, so a burst of webhooks is one or two refreshes of what changed.
+        await coordinator.async_request_refresh()
 
     return Response(status=200)

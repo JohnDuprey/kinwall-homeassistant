@@ -58,8 +58,11 @@ class KinwallClient:
         return await self._request("GET", "/api/settings")
 
     async def get_rev(self) -> int:
-        data = await self._request("GET", "/api/rev")
-        return data["rev"]
+        return (await self.get_rev_info())["rev"]
+
+    async def get_rev_info(self) -> dict[str, Any]:
+        """{rev, revs?, nightScreen}: `revs` ({events, lists, chores}) is missing on older servers."""
+        return await self._request("GET", "/api/rev")
 
     # -- members -------------------------------------------------------
     async def get_members(self) -> list[dict[str, Any]]:
@@ -111,7 +114,8 @@ class KinwallClient:
         return await self._request("GET", "/api/lists")
 
     async def get_list_detail(self, list_id: str) -> dict[str, Any]:
-        return await self._request("GET", f"/api/lists/{list_id}")
+        # suggestions=false: just the list and its items (older servers ignore it and send everything).
+        return await self._request("GET", f"/api/lists/{list_id}", params={"suggestions": "false"})
 
     async def create_list_items(self, list_id: str, items: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
         return await self._request("POST", f"/api/lists/{list_id}/items", json=items)
