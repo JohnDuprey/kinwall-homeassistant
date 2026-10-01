@@ -46,6 +46,7 @@ blueprint:
           domain: time
     new_bedtime:
       name: Bedtime with the reward
+      description: The later bedtime the Switch gets for the rest of the day.
       default: "18:30:00"
       selector:
         time:
@@ -63,6 +64,7 @@ blueprint:
           domain: input_boolean
     reset_at:
       name: Put it back at
+      description: When the bedtime goes back to the usual one.
       default: "00:00:00"
       selector:
         time:

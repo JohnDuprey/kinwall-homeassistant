@@ -19,6 +19,7 @@ blueprint:
   input:
     run_day:
       name: Day to import
+      description: The day of the week the import runs.
       default: sun
       selector:
         select:
@@ -32,6 +33,7 @@ blueprint:
             - { label: Sunday, value: sun }
     run_at:
       name: Time to import
+      description: The time of day the import runs on that day.
       default: "10:00:00"
       selector:
         time:
@@ -68,6 +70,7 @@ blueprint:
           mode: box
     slot:
       name: Meal
+      description: Which meal of the day the box's meals are planned as.
       default: dinner
       selector:
         select:
