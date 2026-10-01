@@ -1,10 +1,10 @@
 # Kinwall for Home Assistant
 
-Home Assistant integration and add-on for [Kinwall](https://github.com/JohnDuprey/kinwall), a
+[Home Assistant](https://www.home-assistant.io) integration and add-on for [Kinwall](https://github.com/JohnDuprey/kinwall), a
 self-hosted, open-source family wall calendar + chore chart. The main Kinwall server lives in a
 separate repo; this repo has:
 
-- **`custom_components/kinwall`** — a HACS-installable integration: calendars, to-do lists, and
+- **`custom_components/kinwall`** — a [HACS](https://hacs.xyz)-installable integration: calendars, to-do lists, and
   sensors for each family member, and Night screen switches for the wall screens, kept live via a
   push webhook.
 - **`kinwall/`** — a Home Assistant add-on that runs the Kinwall server itself.
@@ -217,7 +217,7 @@ When someone gets a chosen Kinwall reward (say "Nintendo Switch"), move a Switch
 
 [![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Freward_switch_bedtime.yaml)
 
-1. Set up the **Nintendo Switch parental controls** integration and find the Switch's **Bedtime alarm** entity.
+1. Set up Home Assistant's [Nintendo Switch parental controls](https://www.home-assistant.io/integrations/nintendo_parental_controls/) integration and find the Switch's **Bedtime alarm** entity.
 2. Create a **Toggle** helper, for example "Switch bedtime moved".
 3. Set up the Kinwall integration (1.6.0 or later).
 4. Import the blueprint and create an automation from it. Pick the reward name, the bedtime entity and the toggle.
@@ -232,7 +232,7 @@ Once a week (Sunday 10:00 by default), put your HelloFresh box on Kinwall's meal
 
 [![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Fmeal_kit_import.yaml)
 
-1. Set up the **HelloFresh** integration for Home Assistant, and this integration with an **admin** API key.
+1. Set up the [HelloFresh integration](https://github.com/kedube/ha-hellofresh) for Home Assistant by Katherine Dubé (a HACS custom repository), and this integration with an **admin** API key.
 2. Import the blueprint and create an automation from it. The defaults import the **next delivery** with meals picked, at your plan's number of people, as dinners from delivery day; you can change the day and time, the servings, the first night (days after delivery), the meal (dinner, lunch…) and whether to skip weekends.
    **Add dinners to calendar** (empty by default: off) takes a Kinwall calendar ID. Each planned meal then also goes on that calendar, at your usual time for that meal (Kinwall Settings → Family → Meals) and as long as the recipe takes. Find the ID in Kinwall under **Settings → Calendars**: tap the calendar and it's at the bottom. A synced Google or Outlook calendar works too; the event shows up there as well. The event follows the meal if you move or change it in Kinwall. Needs the Kinwall server version that has meal calendar events.
 3. To import now (for example after changing your picks), open the automation and choose **Run**.
@@ -247,7 +247,7 @@ Keeps your HelloFresh deliveries on a Kinwall calendar, checked every three hour
 
 [![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Fmeal_kit_deliveries.yaml)
 
-1. Set up the **HelloFresh** integration for Home Assistant, and this integration (1.7.0 or later) with an **admin** API key.
+1. Set up the [HelloFresh integration](https://github.com/kedube/ha-hellofresh) for Home Assistant by Katherine Dubé (a HACS custom repository), and this integration (1.7.0 or later) with an **admin** API key.
 2. Make or pick a calendar in Kinwall for the deliveries (**Settings → Calendars**; it must be one made in Kinwall, not a synced Google or Outlook calendar) and copy its ID from the bottom of the calendar's settings.
 3. Import the blueprint and create an automation from it with that **Kinwall calendar ID**. **Weeks ahead** (default 6) is how far ahead deliveries show; **Remind me to pick meals** (default on) adds the deadline reminders. **Show deliveries as free** (default on) puts deliveries on the calendar as free, like "Show as: Free" in Google or Outlook: they show striped and marked "Free", but a 12-hour delivery window isn't "Now" in Kinwall all day and gets no leave-by. The pick-meals reminders stay busy.
 

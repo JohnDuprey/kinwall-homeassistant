@@ -9,8 +9,8 @@ blueprint:
     taps Mark given; choose "When it's approved" to move it as soon as the reward is approved (a
     reward redeemed on a parent's device is approved right away).
 
-    Needs the Kinwall integration 1.6.0 or later, the Nintendo Switch parental controls
-    integration, and one Toggle helper you create first, which notes the bedtime was moved today so
+    Needs the Kinwall integration 1.6.0 or later, the [Nintendo Switch parental
+    controls](https://www.home-assistant.io/integrations/nintendo_parental_controls/) integration, and one Toggle helper you create first, which notes the bedtime was moved today so
     midnight only resets it after a reward.
   domain: automation
   source_url: https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/blueprints/automation/kinwall/reward_switch_bedtime.yaml

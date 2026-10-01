@@ -10,8 +10,9 @@ blueprint:
     go away are removed from the calendar; past deliveries stay. Events you add yourself on that
     calendar are never touched.
 
-    Needs the HelloFresh integration for Home Assistant and the Kinwall integration (1.7.0 or
-    later) set up with an admin API key, on a Kinwall server newer than 1.0.2.
+    Needs the [HelloFresh integration](https://github.com/kedube/ha-hellofresh) for Home
+    Assistant by Katherine Dubé and the Kinwall integration (1.7.0 or later) set up with an
+    admin API key, on a Kinwall server newer than 1.0.2.
   domain: automation
   homeassistant:
     min_version: 2025.4.0
