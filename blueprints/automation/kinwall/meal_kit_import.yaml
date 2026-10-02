@@ -11,7 +11,8 @@ blueprint:
     run by hand (the automation's Run action) after changing your picks.
 
     Needs the [HelloFresh integration](https://github.com/kedube/ha-hellofresh) for Home
-    Assistant by Katherine Dubé and the Kinwall integration set up with an admin API key.
+    Assistant by Katherine Dubé and the Kinwall integration set up with an admin API key. Meals has
+    to be on in Kinwall (Settings → General → Features).
   domain: automation
   homeassistant:
     min_version: 2025.4.0
