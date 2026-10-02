@@ -13,8 +13,9 @@ from aiohttp.web import Request, Response
 from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, CONF_URL, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.network import get_url
@@ -36,7 +37,7 @@ from .const import (
     SIGNATURE_HEADER,
 )
 from .coordinator import KinwallCoordinator
-from .entity import FAMILY_DEVICE_KEY
+from .entity import FAMILY_DEVICE_KEY, feature_of
 from .services import async_setup_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,9 +72,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await _async_register_webhook(hass, entry, client)
 
+    _async_remove_switched_off(hass, entry, coordinator)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    _async_reload_on_feature_change(hass, entry, coordinator)
     return True
+
+
+@callback
+def _async_remove_switched_off(hass: HomeAssistant, entry: ConfigEntry, coordinator: KinwallCoordinator) -> None:
+    """Drop entities of features the family turned off in Kinwall; turning one back on recreates them."""
+    registry = er.async_get(hass)
+    for reg in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if not coordinator.feature_on(feature_of(entry, reg.unique_id)):
+            registry.async_remove(reg.entity_id)
+
+
+@callback
+def _async_reload_on_feature_change(hass: HomeAssistant, entry: ConfigEntry, coordinator: KinwallCoordinator) -> None:
+    """One reload when Chores or Lists is turned off or on in Kinwall, to remove or add their entities."""
+    gated = lambda: (coordinator.feature_on("chores"), coordinator.feature_on("lists"))  # noqa: E731
+    at_setup = gated()
+    scheduled = False
+
+    @callback
+    def _changed() -> None:
+        nonlocal scheduled
+        if not scheduled and gated() != at_setup:
+            scheduled = True  # once: further updates before the reload don't queue another
+            hass.config_entries.async_schedule_reload(entry.entry_id)
+
+    entry.async_on_unload(coordinator.async_add_listener(_changed))
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

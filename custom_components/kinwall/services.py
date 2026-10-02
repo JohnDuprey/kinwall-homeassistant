@@ -165,7 +165,9 @@ async def _import_recipe(call: ServiceCall) -> ServiceResponse:
             payload["plan"]["servings"] = d["plan_servings"]
         if d.get("plan_calendar_id"):  # empty = no calendar event
             payload["plan"]["calendarId"] = d["plan_calendar_id"]
-    return await _call("import the recipe", _client(call.hass, call).import_recipe(payload))
+    coordinator = _coordinator(call.hass, call)
+    coordinator.require("meals")
+    return await _call("import the recipe", coordinator.client.import_recipe(payload))
 
 
 async def _plan_meal(call: ServiceCall) -> ServiceResponse:
@@ -176,7 +178,9 @@ async def _plan_meal(call: ServiceCall) -> ServiceResponse:
             payload[api_key] = d[key]
     if "recipe_id" not in d:
         payload["mealKind"] = "freeform"
-    return await _call("plan the meal", _client(call.hass, call).create_meal(payload))
+    coordinator = _coordinator(call.hass, call)
+    coordinator.require("meals")
+    return await _call("plan the meal", coordinator.client.create_meal(payload))
 
 
 def _iso(value: date | datetime, all_day: bool) -> str:

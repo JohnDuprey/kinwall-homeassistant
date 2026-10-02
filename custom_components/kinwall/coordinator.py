@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import KinwallApiError, KinwallAuthError, KinwallClient
@@ -18,6 +18,10 @@ _LOGGER = logging.getLogger(__name__)
 # GET /api/rev `revs`: lists (lists and items), chores (chores, completions, rewards: points) and
 # events (everything else: events, calendars, members, settings). Older servers send no `revs`.
 AREAS = ("events", "lists", "chores")
+
+# Kinwall's family feature switches (Settings → Family → Features) this integration follows: names
+# for errors. Every switch in GET /api/settings `features` is on unless it says false.
+FEATURE_NAMES = {"chores": "Chores", "lists": "Lists", "meals": "Meals"}
 
 
 @dataclass
@@ -36,6 +40,9 @@ class KinwallData:
     # GET /api/displays/night-screen: {all, displays}. None when the server has no such endpoint
     # (older than 1.1.0) or the key can't read it (a display key): no Night screen switches then.
     night_screen: dict | None = None
+    # GET /api/settings `features` and `rewardsEnabled`. A missing key (older server) means on.
+    features: dict = field(default_factory=dict)
+    rewards_enabled: bool = True
 
 
 class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
@@ -54,6 +61,15 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
         self._day: str | None = None  # chores_today and the events window move with the day
         self.family_device_id: str | None = None  # set by async_setup_entry; member devices hang off it
         self.data = KinwallData()
+
+    def feature_on(self, feature: str | None) -> bool:
+        """Whether a Kinwall feature switch is on (None, or a switch the server doesn't send: on)."""
+        return feature is None or self.data.features.get(feature) is not False
+
+    def require(self, feature: str | None) -> None:
+        """Refuse an action on a feature the family turned off in Kinwall."""
+        if not self.feature_on(feature):
+            raise HomeAssistantError(f"{FEATURE_NAMES.get(feature, feature)} are turned off in Kinwall")
 
     async def _async_update_data(self) -> KinwallData:
         try:
@@ -77,10 +93,18 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
         other = "events" in changed  # the catch-all area: refetch everything but unchanged lists
         data = dataclasses.replace(self.data, rev=rev)
         try:
+            if other:  # settings ride the events area; read them first so switched-off areas are skipped
+                try:
+                    settings = await self.client.get_settings()
+                    data.features = settings.get("features") or {}
+                    data.rewards_enabled = settings.get("rewardsEnabled") is not False
+                except KinwallApiError:
+                    pass  # keep what we had (all on to start with)
             if other or "chores" in changed:
                 data.members = await self.client.get_members()  # points
-                data.chores = await self.client.get_chores()
-                data.chores_today = await self.client.get_chores_day(today)
+                chores_on = data.features.get("chores") is not False
+                data.chores = await self.client.get_chores() if chores_on else []
+                data.chores_today = await self.client.get_chores_day(today) if chores_on else []
             if other:
                 now = datetime.now(timezone.utc)
                 start = (now - timedelta(days=EVENTS_WINDOW_PAST_DAYS)).strftime("%Y-%m-%dT00:00:00.000Z")
@@ -92,8 +116,9 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
                 except KinwallApiError:
                     data.night_screen = None
             if other or "lists" in changed:
-                data.lists = await self.client.get_lists()
-                data.list_items = await self._list_items(data.lists, full)
+                lists_on = data.features.get("lists") is not False
+                data.lists = await self.client.get_lists() if lists_on else []
+                data.list_items = await self._list_items(data.lists, full) if lists_on else {}
         except KinwallAuthError as err:
             raise ConfigEntryAuthFailed("Kinwall API key rejected") from err
         except Exception as err:  # noqa: BLE001

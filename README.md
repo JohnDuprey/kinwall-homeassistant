@@ -65,6 +65,20 @@ paired wall screen.
 | `switch.family_night_screen` | Family | The [Night screen](#night-screen) on every wall screen. |
 | `switch.<display>_night_screen` | Wall screen | The Night screen on one paired display. |
 
+### Kinwall's feature switches
+
+The integration follows the features a family turns off in Kinwall (**Settings → General → Features**):
+
+* **Chores & points** off: no points, chores-remaining or chore sensors and no chore to-do lists (`todo.<member>`, `todo.family`).
+* **Lists** off: no list to-do entities.
+* **Meals** off: `kinwall.import_recipe` and `kinwall.plan_meal` fail with "Meals are turned off in Kinwall".
+
+Turning Chores & points or Lists off or on reloads the integration once, which removes or brings back those
+entities (removed ones don't linger as unavailable). Until the reload, they're unavailable and
+refuse changes with "Chores are turned off in Kinwall" (or Lists). Calendars and Night screen
+switches don't depend on a switch. A Kinwall server without feature switches counts every feature
+as on.
+
 ### Lists
 
 Every non-archived Kinwall list (shopping, to-do, or reusable) shows up as its own `todo.*` entity,

@@ -10,6 +10,7 @@ BASE_URL = "http://kinwall.local:8080"
 def _mock_full_refresh(aioclient_mock, rev: int):
     aioclient_mock.clear_requests()
     aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": rev})
+    aioclient_mock.get(f"{BASE_URL}/api/settings", json={})  # a server without feature switches: all on
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
@@ -45,6 +46,7 @@ async def test_refetch_when_rev_changes(hass, aioclient_mock):
 
     aioclient_mock.clear_requests()
     aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": 2})
+    aioclient_mock.get(f"{BASE_URL}/api/settings", json={})  # a server without feature switches: all on
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 5, "pointsWeek": 5}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
@@ -61,6 +63,7 @@ async def test_refetch_when_rev_changes(hass, aioclient_mock):
 async def test_fetches_lists_and_one_detail_per_list(hass, aioclient_mock):
     aioclient_mock.clear_requests()
     aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": 1})
+    aioclient_mock.get(f"{BASE_URL}/api/settings", json={})  # a server without feature switches: all on
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
@@ -96,6 +99,7 @@ def _detail(list_id: str, title: str) -> dict:
 def _mock_everything(aioclient_mock, rev: int, revs: dict | None, lists=LISTS, titles=("Milk", "Sweep")):
     aioclient_mock.clear_requests()
     aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": rev, **({"revs": revs} if revs is not None else {}), "nightScreen": None})
+    aioclient_mock.get(f"{BASE_URL}/api/settings", json={})  # a server without feature switches: all on
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[{"id": "e1"}])
@@ -148,7 +152,7 @@ async def test_other_changes_refetch_all_but_unchanged_list_items(hass, aioclien
     coordinator = await _started(hass, aioclient_mock)
     _mock_everything(aioclient_mock, rev=2, revs={"events": 2, "lists": 1, "chores": 1})
     await coordinator.async_refresh()
-    assert _paths(aioclient_mock) == ["/api/calendars", "/api/chores", "/api/chores/day", "/api/displays/night-screen", "/api/events", "/api/lists", "/api/members", "/api/rev"]
+    assert _paths(aioclient_mock) == ["/api/calendars", "/api/chores", "/api/chores/day", "/api/displays/night-screen", "/api/events", "/api/lists", "/api/members", "/api/rev", "/api/settings"]
     # A list removed in Kinwall leaves the cache.
     _mock_everything(aioclient_mock, rev=3, revs={"events": 2, "lists": 2, "chores": 1}, lists=LISTS[:1])
     await coordinator.async_refresh()
@@ -171,5 +175,5 @@ async def test_older_server_without_revs_refetches_everything(hass, aioclient_mo
     await coordinator.async_refresh()
     _mock_everything(aioclient_mock, rev=2, revs=None, lists=no_revs, titles=("Eggs", "Sweep"))
     await coordinator.async_refresh()
-    assert len(_paths(aioclient_mock)) == 10  # rev, members, calendars, events, chores x2, lists, 2 details, night screen
+    assert len(_paths(aioclient_mock)) == 11  # rev, settings, members, calendars, events, chores x2, lists, 2 details, night screen
     assert coordinator.data.list_items["l1"] == [{"id": "l1-i", "title": "Eggs"}]

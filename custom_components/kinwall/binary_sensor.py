@@ -21,7 +21,7 @@ from .entity import KinwallEntity, family_device_info, member_device_info
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: KinwallCoordinator = hass.data[DOMAIN][entry.entry_id]
     members = {m["id"]: m["name"] for m in coordinator.data.members}
-    async_add_entities(
+    async_add_entities(  # chores is empty while Chores is turned off in Kinwall
         KinwallChoreDoneSensor(coordinator, entry, chore, members.get(chore.get("memberId") or ""))
         for chore in coordinator.data.chores
         if chore.get("active", True)

@@ -9,6 +9,7 @@ BASE_URL = "http://kinwall.local:8080"
 
 def _mock_full_refresh(aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": 1})
+    aioclient_mock.get(f"{BASE_URL}/api/settings", json={})  # a server without feature switches: all on
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
@@ -70,6 +71,7 @@ async def test_webhook_reregistered_when_ha_url_changes(hass, aioclient_mock):
 
 async def test_chore_binary_sensor_reflects_todays_completion(hass, aioclient_mock):
     aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": 1})
+    aioclient_mock.get(f"{BASE_URL}/api/settings", json={})  # a server without feature switches: all on
     aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])

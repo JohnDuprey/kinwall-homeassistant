@@ -91,6 +91,7 @@ async def test_complete_calls_complete_api(hass, aioclient_mock):
 
     aioclient_mock.post(f"http://kinwall.local:8080/api/chores/c1/complete", json={"ok": True})
     aioclient_mock.get(f"http://kinwall.local:8080/api/rev", json={"rev": 1})
+    aioclient_mock.get(f"http://kinwall.local:8080/api/settings", json={})  # a server without feature switches: all on
 
     await entity.async_update_todo_item(TodoItem(uid="c1", summary="Dishes", status=TodoItemStatus.COMPLETED))
 
@@ -119,6 +120,7 @@ def _make_list_entity(hass, aioclient_mock, kind="shopping", items=None):
     entity = KinwallList(coordinator, _FakeEntry(), "l1", "Groceries", kind, None)
     entity.hass = hass
     aioclient_mock.get("http://kinwall.local:8080/api/rev", json={"rev": 1})
+    aioclient_mock.get(f"http://kinwall.local:8080/api/settings", json={})  # a server without feature switches: all on
     return entity
 
 

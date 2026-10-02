@@ -80,13 +80,15 @@ def _to_list_todo_item(item: dict[str, Any], kind: str) -> TodoItem:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: KinwallCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    entities: list[TodoListEntity] = [KinwallChoreList(coordinator, entry, ANYONE_ID, "Anyone")]
-    for member in coordinator.data.members:
-        entities.append(KinwallChoreList(coordinator, entry, member["id"], member["name"]))
-    async_add_entities(entities)
+    if coordinator.feature_on("chores"):
+        entities: list[TodoListEntity] = [KinwallChoreList(coordinator, entry, ANYONE_ID, "Anyone")]
+        for member in coordinator.data.members:
+            entities.append(KinwallChoreList(coordinator, entry, member["id"], member["name"]))
+        async_add_entities(entities)
 
     # Kinwall lists (shopping/todo/reusable) are user-created, so entities for them are added
-    # and removed dynamically as the coordinator's data changes, rather than once at setup.
+    # and removed dynamically as the coordinator's data changes, rather than once at setup. With
+    # Lists turned off in Kinwall the coordinator has none.
     known_ids: set[str] = set()
     list_entities: dict[str, KinwallList] = {}
 
@@ -142,6 +144,7 @@ class KinwallChoreList(KinwallEntity, TodoListEntity):
         return [_to_todo_item(c) for c in self._chores()]
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
+        self.coordinator.require(self._feature)
         today = _today()
         if item.status == TodoItemStatus.COMPLETED:
             member_id = None if self._member_id == ANYONE_ID else self._member_id
@@ -155,6 +158,7 @@ class KinwallChoreList(KinwallEntity, TodoListEntity):
         await self.coordinator.async_request_refresh()
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
+        self.coordinator.require(self._feature)
         # Points come from the integration's options (default 5) so automations get a sensible value.
         payload: dict[str, Any] = {"title": item.summary, "dueDate": _today(), "points": self._entry.options.get(OPT_CHORE_POINTS, DEFAULT_CHORE_POINTS)}
         if self._member_id != ANYONE_ID:
@@ -163,6 +167,7 @@ class KinwallChoreList(KinwallEntity, TodoListEntity):
         await self.coordinator.async_request_refresh()
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
+        self.coordinator.require(self._feature)
         for uid in uids:
             await self.coordinator.client.delete_chore(uid)
         await self.coordinator.async_request_refresh()
@@ -207,6 +212,7 @@ class KinwallList(KinwallEntity, TodoListEntity):
         return [_to_list_todo_item(i, self._kind) for i in self._items()]
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
+        self.coordinator.require(self._feature)
         # Only send what was actually given - an omitted store/category lets the server
         # "remember" the last one used for that title.
         payload: dict[str, Any] = {"title": item.summary}
@@ -219,6 +225,7 @@ class KinwallList(KinwallEntity, TodoListEntity):
         await self.coordinator.async_request_refresh()
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
+        self.coordinator.require(self._feature)
         # HA hands us the item's full, merged state, so map every field - but only write
         # notes back (never clobber a remembered store/category with the generated line).
         payload: dict[str, Any] = {
@@ -231,11 +238,13 @@ class KinwallList(KinwallEntity, TodoListEntity):
         await self.coordinator.async_request_refresh()
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
+        self.coordinator.require(self._feature)
         for uid in uids:
             await self.coordinator.client.delete_list_item(self._list_id, uid)
         await self.coordinator.async_request_refresh()
 
     async def async_move_todo_item(self, uid: str, previous_uid: str | None = None) -> None:
+        self.coordinator.require(self._feature)
         order = [i["id"] for i in self._items() if i["id"] != uid]
         index = order.index(previous_uid) + 1 if previous_uid else 0
         order.insert(index, uid)

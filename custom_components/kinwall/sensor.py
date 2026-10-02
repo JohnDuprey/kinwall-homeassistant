@@ -15,6 +15,8 @@ from .entity import KinwallEntity, member_device_info
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: KinwallCoordinator = hass.data[DOMAIN][entry.entry_id]
+    if not coordinator.feature_on("chores"):  # every sensor here is about chores and their points
+        return
 
     entities: list[SensorEntity] = []
     for member in coordinator.data.members:
