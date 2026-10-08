@@ -1,7 +1,7 @@
 # Kinwall for Home Assistant
 
 [Home Assistant](https://www.home-assistant.io) integration and add-on for [Kinwall](https://github.com/JohnDuprey/kinwall), a
-self-hosted, open-source family wall calendar + chore chart. The main Kinwall server lives in a
+self-hosted, open-source family life organizer, on your wall and every phone. The main Kinwall server lives in a
 separate repo; this repo has:
 
 - **`custom_components/kinwall`** — a [HACS](https://hacs.xyz)-installable integration: calendars, to-do lists, and
@@ -265,7 +265,7 @@ Keeps your HelloFresh deliveries on a Kinwall calendar, checked every three hour
 2. Make or pick a calendar in Kinwall for the deliveries (**Settings → Calendars**; it must be one made in Kinwall, not a synced Google or Outlook calendar) and copy its ID from the bottom of the calendar's settings.
 3. Import the blueprint and create an automation from it with that **Kinwall calendar ID**. **Weeks ahead** (default 6) is how far ahead deliveries show; **Remind me to pick meals** (default on) adds the deadline reminders. **Show deliveries as free** (default on) puts deliveries on the calendar as free, like "Show as: Free" in Google or Outlook: they show striped and marked "Free", but a 12-hour delivery window isn't "Now" in Kinwall all day and gets no leave-by. The pick-meals reminders stay busy.
 
-Each run replaces what it put on the calendar from today through the weeks ahead, so a skipped or cancelled delivery disappears and a changed window or pick updates its event. Past deliveries stay, and events you add yourself on that calendar are never changed. If HelloFresh returns no weeks (for example while it's signed out), the run stops without changing anything. Needs a Kinwall server newer than 1.0.2 and Home Assistant 2025.4 or later.
+Each run replaces what it put on the calendar from today through the weeks ahead, so a skipped or canceled delivery disappears and a changed window or pick updates its event. Past deliveries stay, and events you add yourself on that calendar are never changed. If HelloFresh returns no weeks (for example while it's signed out), the run stops without changing anything. Needs a Kinwall server newer than 1.0.2 and Home Assistant 2025.4 or later.
 
 ### Kinwall Night screen while nobody's home
 
