@@ -213,6 +213,33 @@ automation:
 
 ## Development
 
+### Tracking Kinwall server releases
+
+The **Track Kinwall releases** workflow checks the latest published stable
+[Kinwall release](https://github.com/JohnDuprey/kinwall/releases) hourly. You can also run it under
+**Actions → Track Kinwall releases → Run workflow**. It waits until the matching Docker image has
+both `linux/amd64` and `linux/arm64` builds, then opens a PR updating the add-on's
+`kinwall/config.yaml` and prepending the upstream release notes to `kinwall/CHANGELOG.md`.
+The HACS integration's version is independent and is not changed.
+
+Each version gets one PR. Repeated checks leave existing PRs and review edits alone; closing an
+update PR skips that version. Newer releases can get their own PR, and the changelog links to all
+changes since the installed add-on version. Review and merge the update to make it available in
+Home Assistant; nothing merges automatically. If the image is still building, the next check retries.
+
+The workflow uses the repository's `GITHUB_TOKEN`. Enable **Settings → Actions → General →
+Workflow permissions → Allow GitHub Actions to create and approve pull requests**. It only creates
+PRs; it does not approve them. GitHub may require you to approve validation workflow runs on a
+bot-created PR. The workflow creates bot commits on release branches for review.
+
+Test the updater without installing Home Assistant:
+
+```bash
+python3 -m unittest discover -s scripts -p 'test_*.py'
+```
+
+### Integration tests
+
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements_test.txt
