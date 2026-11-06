@@ -169,3 +169,25 @@ async def test_kinwall_webhook_replaced_when_the_events_list_grows(hass, aioclie
     posts = [d for m, u, d, *_ in aioclient_mock.mock_calls if m == "POST" and str(u).endswith("/api/webhooks")]
     assert {"reward.given", "reward.approved", "reward.redeemed"} <= set(posts[-1]["events"])
     assert posts[-1]["events"] == ALL_WEBHOOK_EVENTS
+
+
+async def test_reload_keeps_the_kinwall_webhook_and_removal_deletes_it(hass, aioclient_mock):
+    """A reload (options, a feature switch) must not drop Kinwall's pushes; removing the entry does."""
+    _mock_full_refresh(aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/webhooks", json={"id": "wh_server_1"})
+    aioclient_mock.delete(f"{BASE_URL}/api/webhooks/wh_server_1", json={"ok": True})
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_URL: BASE_URL, CONF_API_KEY: "fc_key"})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    calls = [(m, str(u)) for m, u, *_ in aioclient_mock.mock_calls]
+    assert ("DELETE", f"{BASE_URL}/api/webhooks/wh_server_1") not in calls
+    assert entry.data[CONF_KINWALL_WEBHOOK_ID] == "wh_server_1"
+
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert any(m == "DELETE" and str(u).endswith("/api/webhooks/wh_server_1") for m, u, *_ in aioclient_mock.mock_calls)

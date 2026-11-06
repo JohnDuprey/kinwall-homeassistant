@@ -108,9 +108,23 @@ def _async_reload_on_feature_change(hass: HomeAssistant, entry: ConfigEntry, coo
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        await _async_unregister_webhook(hass, entry)
+        webhook_id = entry.data.get(CONF_WEBHOOK_ID)
+        if webhook_id:
+            webhook.async_unregister(hass, webhook_id)
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Delete Kinwall's webhook only when the entry goes: a reload keeps it, and setup reuses it."""
+    kinwall_webhook_id = entry.data.get(CONF_KINWALL_WEBHOOK_ID)
+    if kinwall_webhook_id:
+        session = async_get_clientsession(hass)
+        client = KinwallClient(session, entry.data[CONF_URL], entry.data[CONF_API_KEY])
+        try:
+            await client.delete_webhook(kinwall_webhook_id)
+        except Exception as err:  # noqa: BLE001 - best effort cleanup
+            _LOGGER.debug("Kinwall: could not delete server-side webhook: %s", err)
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -206,21 +220,6 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
         hass.config_entries.async_update_entry(entry, data=new_data)
 
     webhook.async_register(hass, DOMAIN, "Kinwall", webhook_id, _handle_webhook)
-
-
-async def _async_unregister_webhook(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    webhook_id = entry.data.get(CONF_WEBHOOK_ID)
-    if webhook_id:
-        webhook.async_unregister(hass, webhook_id)
-
-    kinwall_webhook_id = entry.data.get(CONF_KINWALL_WEBHOOK_ID)
-    if kinwall_webhook_id:
-        session = async_get_clientsession(hass)
-        client = KinwallClient(session, entry.data[CONF_URL], entry.data[CONF_API_KEY])
-        try:
-            await client.delete_webhook(kinwall_webhook_id)
-        except Exception as err:  # noqa: BLE001 - best effort cleanup
-            _LOGGER.debug("Kinwall: could not delete server-side webhook: %s", err)
 
 
 async def _handle_webhook(hass: HomeAssistant, webhook_id: str, request: Request) -> Response:
