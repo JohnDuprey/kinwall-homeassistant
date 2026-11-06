@@ -10,7 +10,7 @@ CONF_KINWALL_WEBHOOK_SECRET = "kinwall_webhook_secret"
 CONF_KINWALL_WEBHOOK_URL = "kinwall_webhook_url"  # the callback we registered; re-registered when HA's URL changes
 CONF_KINWALL_WEBHOOK_EVENTS = "kinwall_webhook_events"  # the events it was registered with; re-registered when ALL_WEBHOOK_EVENTS changes
 
-DEFAULT_POLL_INTERVAL = 30  # seconds
+DEFAULT_POLL_INTERVAL = 60  # seconds
 OPT_POLL_INTERVAL = "poll_interval"
 OPT_CHORE_POINTS = "chore_points"  # points for chores created from HA (todo.add_item / automations)
 DEFAULT_CHORE_POINTS = 5

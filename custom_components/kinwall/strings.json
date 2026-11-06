@@ -59,7 +59,7 @@
   "issues": {
     "external_url_required": {
       "title": "Kinwall can't push updates to Home Assistant",
-      "description": "Kinwall at {url} is not on your local network, so it can only reach Home Assistant through an external URL. Set one under Settings → System → Network → Home Assistant URL → Internet, then reload the Kinwall integration. Until then the integration polls every 30 seconds instead."
+      "description": "Kinwall at {url} is not on your local network, so it can only reach Home Assistant through an external URL. Set one under Settings → System → Network → Home Assistant URL → Internet, then reload the Kinwall integration. Until then the integration polls every minute instead."
     }
   },
   "services": {
