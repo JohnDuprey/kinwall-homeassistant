@@ -1,0 +1,68 @@
+blueprint:
+  name: Kinwall Free time keeps a display on DashCast
+  description: >-
+    Restore DashCast whenever this display runs another app and any selected child does
+    not have Free time available. Every selected child's Free time must be on to allow
+    other apps; unknown and unavailable decisions do not grant access. DashCast itself
+    is left running. Keep any existing idle/off dashboard watchdog.
+
+    Needs the Kinwall integration 1.10.0 or later with Free time sensors, a Cast media player reporting app_name, DashCast,
+    and actions or a script that loads your dashboard on this display. This reacts to
+    reported app changes; it cannot disable the display's launcher, voice assistant,
+    device settings, or an offline device. Other apps may appear briefly before the
+    dashboard is restored. Retries every 30 seconds when needed.
+  domain: automation
+  source_url: https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/blueprints/automation/kinwall/free_time_dashcast.yaml
+  input:
+    free_time_entities:
+      name: Children's Free time
+      description: Every selected child's Free time sensor must be on to allow other apps.
+      default: []
+      selector:
+        entity:
+          domain: binary_sensor
+          integration: kinwall
+          multiple: true
+    media_player:
+      name: Display
+      description: The Cast display to return to DashCast while Free time is locked.
+      selector:
+        entity:
+          domain: media_player
+    restore_actions:
+      name: Restore DashCast
+      description: Actions that load your dashboard on this display, or call your existing dashboard script.
+      default: []
+      selector:
+        action:
+mode: single
+max_exceeded: silent
+triggers:
+  - trigger: state
+    entity_id: !input free_time_entities
+    to: null
+  - trigger: state
+    entity_id: !input media_player
+    to: null
+  - trigger: state
+    entity_id: !input media_player
+    attribute: app_name
+  - trigger: state
+    entity_id: !input media_player
+    attribute: app_id
+  - trigger: homeassistant
+    event: start
+  - trigger: time_pattern
+    seconds: /30
+variables:
+  free_time_entities: !input free_time_entities
+  media_player: !input media_player
+conditions:
+  - condition: template
+    value_template: >-
+      {{ free_time_entities | length > 0
+         and (free_time_entities | select('is_state', 'on') | list | length != free_time_entities | length)
+         and states(media_player) not in ['off', 'standby', 'unavailable', 'unknown']
+         and (state_attr(media_player, 'app_name') or '') | trim | lower != 'dashcast' }}
+actions:
+  - sequence: !input restore_actions

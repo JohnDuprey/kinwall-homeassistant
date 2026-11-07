@@ -1,0 +1,69 @@
+blueprint:
+  name: Kinwall Free time gates YouTube
+  description: >-
+    Turn off selected media players running YouTube unless every selected child has Free
+    time available. Rechecks when YouTube opens, a child's Free time changes, and Home
+    Assistant starts. Unknown or unavailable Free time does not grant access. Does not
+    turn off other apps or automatically start YouTube when access becomes available.
+
+    Needs the Kinwall integration 1.10.0 or later with Free time sensors (routine mode set
+    up for each child in Kinwall), and media
+    players that report YouTube in their app_name attribute. This reacts to reported
+    playback; it cannot prevent launching the app or control an offline TV.
+  domain: automation
+  source_url: https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/blueprints/automation/kinwall/free_time_youtube.yaml
+  input:
+    free_time_entities:
+      name: Children's Free time
+      description: Every selected child's Kinwall Free time sensor must be on to allow YouTube.
+      default: []
+      selector:
+        entity:
+          domain: binary_sensor
+          integration: kinwall
+          multiple: true
+    media_players:
+      name: Media players
+      description: TVs or streaming players that report YouTube as their app name.
+      default: []
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
+    extra_actions:
+      name: Additional actions when blocking YouTube
+      description: Optional actions, such as turning off the TV through a separate remote.
+      default: []
+      selector:
+        action:
+mode: restart
+triggers:
+  - trigger: state
+    entity_id: !input free_time_entities
+    to: null
+  - trigger: state
+    entity_id: !input media_players
+  - trigger: homeassistant
+    event: start
+variables:
+  free_time_entities: !input free_time_entities
+  media_players: !input media_players
+  youtube_players: >-
+    {% set ns = namespace(players=[]) %}
+    {% for player in media_players %}
+      {% if states(player) not in ['off', 'unavailable', 'unknown'] and (state_attr(player, 'app_name') or '') | lower == 'youtube' %}
+        {% set ns.players = ns.players + [player] %}
+      {% endif %}
+    {% endfor %}
+    {{ ns.players }}
+conditions:
+  - condition: template
+    value_template: >-
+      {{ free_time_entities | length > 0
+         and (free_time_entities | select('is_state', 'on') | list | length != free_time_entities | length)
+         and youtube_players | length > 0 }}
+actions:
+  - action: media_player.turn_off
+    target:
+      entity_id: "{{ youtube_players }}"
+  - sequence: !input extra_actions

@@ -326,3 +326,50 @@ the calendar.
    and **Runs out after** (default 12 hours) ends it on its own if nobody comes home.
 
 A tap on a wall still wakes it while you're out.
+
+### Free time unlocks a Nintendo Switch
+
+Give a Switch its play time only once Kinwall says the child has earned Free time, and take it
+back if a required chore is unchecked during the routine.
+
+[![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Ffree_time_switch.yaml)
+
+1. Set up Home Assistant's [Nintendo Switch parental controls](https://www.home-assistant.io/integrations/nintendo_parental_controls/) integration and find the Switch's **Max screentime today** and **Suspend software** entities.
+2. Set up the Kinwall integration (1.10.0 or later) with a full-access key, and turn on Free time for the child in Kinwall (a Kinwall server newer than 1.2.0). The child's **Free time** sensor appears (see [Free time](#free-time)).
+3. Import the blueprint and create one automation per child and console. Pick the child's Free time sensor, the two Switch entities and the daily allowance in minutes (default 60, or `-1` for no limit until the Switch's own bedtime).
+
+The allowance is a daily total: time already played today counts toward it. When Free time is
+ready the automation turns on Suspend software and grants the allowance; while required chores
+are unfinished or waiting for a grown-up's OK it sets the allowance back to zero. It does nothing
+before the routine starts, after free time ends, when routine mode is off, or while an entity is
+unavailable, and it checks again when Home Assistant starts. It never changes the Switch's
+bedtime, so keep your school-time reset and Nintendo bedtime as they are (start the routine after
+the school reset), and turn off older checklist-based automations so they can't skip the chores.
+Changes reach the Switch through Nintendo's servers, so an offline console catches up later.
+
+### YouTube only when everyone has Free time
+
+Turn off media players running YouTube unless every chosen child has Free time.
+
+[![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Ffree_time_youtube.yaml)
+
+Pick the children's Free time sensors and the media players (they need to report `app_name`).
+If any child loses Free time, or their sensor is unavailable, players showing YouTube are turned
+off; other apps are left alone. It checks again when a child's Free time changes, when a player
+updates and when Home Assistant starts, and can run extra actions (for example turning off a TV
+through its remote). It reacts after YouTube opens rather than stopping it from opening, and
+can't reach an offline player.
+
+### DashCast until everyone has Free time
+
+Send a Cast display back to its dashboard whenever another app runs while any chosen child
+doesn't have Free time.
+
+[![Import the blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/create-link/?redirect=blueprint_import&blueprint_url=https%3A%2F%2Fgithub.com%2FJohnDuprey%2Fkinwall-homeassistant%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fkinwall%2Ffree_time_dashcast.yaml)
+
+Pick the children's Free time sensors, the display and the actions that load your dashboard
+(DashCast, or a script you already have). Other apps are allowed only when every chosen child
+has Free time. It checks when the display or a child's Free time changes, when Home Assistant
+starts and every 30 seconds, and leaves DashCast itself running; offline displays are skipped.
+It only sees apps the display reports, so an app may show for a moment before the dashboard comes
+back, and it can't lock the display's launcher, voice assistant or settings.

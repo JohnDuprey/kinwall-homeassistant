@@ -19,6 +19,9 @@ def expected_lingering_timers() -> bool:
 
 BLUEPRINTS = Path(__file__).parent.parent / "blueprints" / "automation" / "kinwall"
 REQUIRED_INPUTS = {
+    "free_time_dashcast.yaml": {"free_time_entities": ["binary_sensor.maya_free_time", "binary_sensor.leo_free_time"], "media_player": "media_player.display", "restore_actions": [{"action": "script.dashboard"}]},
+    "free_time_youtube.yaml": {"free_time_entities": ["binary_sensor.maya_free_time", "binary_sensor.leo_free_time"], "media_players": ["media_player.tv"]},
+    "free_time_switch.yaml": {"free_time_entity": "binary_sensor.maya_free_time", "screen_time_entity": "number.switch_time", "suspend_entity": "switch.suspend"},
     "reward_switch_bedtime.yaml": {"bedtime_entity": "time.switch_bedtime", "moved_today": "input_boolean.moved"},
     "meal_kit_import.yaml": {},
     "meal_kit_deliveries.yaml": {"calendar_id": "cal-1"},
@@ -311,3 +314,120 @@ async def test_switch_bedtime_follows_the_integrations_signed_events(hass, move_
     hass.bus.async_fire(event, data)
     await hass.async_block_till_done()
     assert set_values == (["18:30:00"] if moves else [])
+
+
+@pytest.mark.parametrize(("reason", "state", "current", "expected"), [
+    ("ready", "on", "0", [60]), ("routine", "off", "60", [0]),
+    ("scheduled", "off", "0", []), ("bedtime", "off", "60", []),
+    ("off", "off", "0", []), ("ready", "unavailable", "0", []),
+    ("ready", "on", "unavailable", []), ("ready", "on", "60", []),
+])
+async def test_free_time_switch_leaves_school_reset_and_bedtime_alone(hass, reason, state, current, expected):
+    hass.states.async_set("binary_sensor.maya_free_time", state, {"reason": reason})
+    hass.states.async_set("number.switch_time", current)
+    hass.states.async_set("switch.suspend", "on")
+    calls = []
+    hass.services.async_register("number", "set_value", lambda call: calls.append(call.data["value"]))
+    hass.services.async_register("switch", "turn_on", lambda call: None)
+    blueprint = Blueprint(load_yaml(BLUEPRINTS / "free_time_switch.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": REQUIRED_INPUTS["free_time_switch.yaml"]}}).async_substitute()
+    assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "free", "alias": "free"}]})
+    await hass.async_block_till_done()
+    await hass.services.async_call("automation", "trigger", {"entity_id": "automation.free", "skip_condition": False}, blocking=True)
+    await hass.async_block_till_done()
+    assert calls == expected
+
+
+@pytest.mark.parametrize(("first", "second", "app", "blocked"), [
+    ("on", "on", "YouTube", False), ("off", "on", "YouTube", True),
+    ("on", "off", "YouTube", True), ("unavailable", "on", "YouTube", True),
+    ("on", "unknown", "YouTube", True), ("off", "off", "Netflix", False),
+])
+async def test_youtube_requires_every_childs_free_time(hass, first, second, app, blocked):
+    hass.states.async_set("binary_sensor.maya_free_time", first)
+    hass.states.async_set("binary_sensor.leo_free_time", second)
+    hass.states.async_set("media_player.tv", "on", {"app_name": app})
+    calls = []
+    hass.services.async_register("media_player", "turn_off", lambda call: calls.append(call.data))
+    blueprint = Blueprint(load_yaml(BLUEPRINTS / "free_time_youtube.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": REQUIRED_INPUTS["free_time_youtube.yaml"]}}).async_substitute()
+    assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "youtube", "alias": "youtube"}]})
+    await hass.async_block_till_done()
+    await hass.services.async_call("automation", "trigger", {"entity_id": "automation.youtube", "skip_condition": False}, blocking=True)
+    await hass.async_block_till_done()
+    assert bool(calls) is blocked
+
+
+async def test_youtube_rechecks_when_free_time_is_lost_during_playback(hass):
+    hass.states.async_set("binary_sensor.maya_free_time", "on")
+    hass.states.async_set("binary_sensor.leo_free_time", "on")
+    hass.states.async_set("media_player.tv", "on", {"app_name": "YouTube"})
+    calls = []
+    hass.services.async_register("media_player", "turn_off", lambda call: calls.append(call.data))
+    blueprint = Blueprint(load_yaml(BLUEPRINTS / "free_time_youtube.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": REQUIRED_INPUTS["free_time_youtube.yaml"]}}).async_substitute()
+    assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "youtube", "alias": "youtube"}]})
+    await hass.async_block_till_done()
+    hass.states.async_set("binary_sensor.leo_free_time", "off")
+    await hass.async_block_till_done()
+    assert len(calls) == 1
+    assert calls[0]["entity_id"] == ["media_player.tv"]
+
+
+async def test_poll_timestamps_do_not_repeat_switch_commands(hass):
+    hass.states.async_set("binary_sensor.maya_free_time", "off", {"reason": "routine", "checkedAt": "first"})
+    hass.states.async_set("number.switch_time", "0")
+    calls = []
+    hass.services.async_register("switch", "turn_on", lambda call: calls.append(call.data))
+    blueprint = Blueprint(load_yaml(BLUEPRINTS / "free_time_switch.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": REQUIRED_INPUTS["free_time_switch.yaml"]}}).async_substitute()
+    assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "free", "alias": "free"}]})
+    await hass.async_block_till_done()
+    hass.states.async_set("binary_sensor.maya_free_time", "off", {"reason": "routine", "checkedAt": "second"})
+    await hass.async_block_till_done()
+    assert calls == []
+
+
+@pytest.mark.parametrize(("first", "second", "state", "app", "restore"), [
+    ("off", "off", "playing", "Netflix", True),
+    ("on", "off", "playing", "YouTube", True),
+    ("off", "on", "paused", "Spotify", True),
+    ("on", "on", "playing", "Netflix", False),
+    ("unavailable", "on", "playing", "Netflix", True),
+    ("off", "off", "playing", "DashCast", False),
+    ("off", "off", "idle", "DashCast", False),
+    ("off", "off", "playing", "", True),
+    ("off", "off", "unavailable", "", False),
+    ("off", "off", "off", "", False),
+])
+async def test_display_allows_only_dashcast_until_every_child_has_free_time(hass, first, second, state, app, restore):
+    hass.states.async_set("binary_sensor.maya_free_time", first)
+    hass.states.async_set("binary_sensor.leo_free_time", second)
+    hass.states.async_set("media_player.display", state, {"app_name": app})
+    calls = []
+    hass.services.async_register("script", "dashboard", lambda call: calls.append(call.data))
+    blueprint = Blueprint(load_yaml(BLUEPRINTS / "free_time_dashcast.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": REQUIRED_INPUTS["free_time_dashcast.yaml"]}}).async_substitute()
+    assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "dashcast", "alias": "dashcast"}]})
+    await hass.async_block_till_done()
+    await hass.services.async_call("automation", "trigger", {"entity_id": "automation.dashcast", "skip_condition": False}, blocking=True)
+    await hass.async_block_till_done()
+    assert bool(calls) is restore
+
+
+async def test_display_restores_when_either_child_loses_free_time(hass):
+    hass.states.async_set("binary_sensor.maya_free_time", "on")
+    hass.states.async_set("binary_sensor.leo_free_time", "on")
+    hass.states.async_set("media_player.display", "playing", {"app_name": "Netflix"})
+    calls = []
+    hass.services.async_register("script", "dashboard", lambda call: calls.append(call.data))
+    blueprint = Blueprint(load_yaml(BLUEPRINTS / "free_time_dashcast.yaml"), expected_domain="automation", schema=AUTOMATION_BLUEPRINT_SCHEMA)
+    config = BlueprintInputs(blueprint, {"use_blueprint": {"path": "x", "input": REQUIRED_INPUTS["free_time_dashcast.yaml"]}}).async_substitute()
+    assert await async_setup_component(hass, "automation", {"automation": [{**config, "id": "dashcast", "alias": "dashcast"}]})
+    await hass.async_block_till_done()
+    hass.states.async_set("binary_sensor.leo_free_time", "off")
+    await hass.async_block_till_done()
+    assert len(calls) == 1
+    hass.states.async_set("media_player.display", "idle", {"app_name": "DashCast"})
+    await hass.async_block_till_done()
+    assert len(calls) == 1

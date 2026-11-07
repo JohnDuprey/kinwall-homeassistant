@@ -1,0 +1,103 @@
+blueprint:
+  name: Kinwall Free time unlocks a Nintendo Switch
+  description: >-
+    Restore a Switch's daily screen-time allowance when its child's Kinwall Free time is
+    ready. Set it to zero if a required chore is unfinished or awaiting approval during
+    the routine. Does nothing before the routine starts, after free time ends, when routine
+    mode is off, or when a decision is unavailable. Keep your existing school-time reset
+    and each Switch's bedtime settings; this automation never changes bedtime.
+
+    Needs the Kinwall integration 1.10.0 or later with a full-access key, a Kinwall server
+    newer than 1.2.0 with Chores on and routine mode set up for the child, and Home
+    Assistant's Nintendo Switch parental controls integration. Create one automation
+    per child/console. Suspend software is enabled before changing the allowance.
+    The allowance is a daily total, not additional minutes. Nintendo requires an internet
+    connection; updates are not guaranteed to reach an offline console immediately.
+  domain: automation
+  source_url: https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/blueprints/automation/kinwall/free_time_switch.yaml
+  input:
+    free_time_entity:
+      name: Child's Free time
+      description: The child's Kinwall Free time binary sensor.
+      selector:
+        entity:
+          integration: kinwall
+          domain: binary_sensor
+    screen_time_entity:
+      name: Switch daily allowance
+      description: This child's Switch Max screentime today number entity.
+      selector:
+        entity:
+          domain: number
+          integration: nintendo_parental_controls
+    suspend_entity:
+      name: Switch Suspend software
+      description: The same Switch's Suspend software switch. Enabled to enforce the hold and bedtime.
+      selector:
+        entity:
+          domain: switch
+          integration: nintendo_parental_controls
+    allowance:
+      name: Daily allowance in minutes
+      description: Total screen time allowed today when Free time is earned. Existing usage still counts. Use -1 for unlimited play until the Switch bedtime.
+      default: 60
+      selector:
+        number:
+          min: -1
+          max: 360
+          step: 1
+          unit_of_measurement: min
+
+mode: restart
+triggers:
+  - trigger: state
+    entity_id: !input free_time_entity
+    to: null
+  - trigger: state
+    entity_id: !input free_time_entity
+    attribute: reason
+  - trigger: homeassistant
+    event: start
+  - trigger: state
+    entity_id: !input screen_time_entity
+    from: unavailable
+  - trigger: state
+    entity_id: !input screen_time_entity
+    from: unknown
+variables:
+  free_time_entity: !input free_time_entity
+  screen_time_entity: !input screen_time_entity
+  allowance: !input allowance
+conditions:
+  - condition: template
+    value_template: "{{ states(free_time_entity) in ['on', 'off'] and is_number(states(screen_time_entity)) }}"
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ is_state(free_time_entity, 'on') and state_attr(free_time_entity, 'reason') == 'ready' }}"
+        sequence:
+          - condition: template
+            value_template: "{{ states(screen_time_entity) | float != allowance | float }}"
+          - action: switch.turn_on
+            target:
+              entity_id: !input suspend_entity
+          - action: number.set_value
+            target:
+              entity_id: !input screen_time_entity
+            data:
+              value: !input allowance
+      - conditions:
+          - condition: template
+            value_template: "{{ is_state(free_time_entity, 'off') and state_attr(free_time_entity, 'reason') == 'routine' }}"
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: !input suspend_entity
+          - condition: template
+            value_template: "{{ states(screen_time_entity) | float != 0 }}"
+          - action: number.set_value
+            target:
+              entity_id: !input screen_time_entity
+            data:
+              value: 0
