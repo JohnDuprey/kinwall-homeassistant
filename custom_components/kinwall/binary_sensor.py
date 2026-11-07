@@ -27,6 +27,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         if chore.get("active", True)
     )
 
+    known: set[str] = set()
+
+    def add_free_time() -> None:
+        added = []
+        for member in coordinator.data.members:
+            member_id = member["id"]
+            if member_id in known or member_id not in coordinator.data.routines:
+                continue
+            known.add(member_id)
+            added.append(KinwallFreeTimeSensor(coordinator, entry, member_id, member["name"]))
+        async_add_entities(added)
+
+    add_free_time()
+    entry.async_on_unload(coordinator.async_add_listener(add_free_time))
+
+
+class KinwallFreeTimeSensor(KinwallEntity, BinarySensorEntity):
+    """On only when an enabled routine says free time has been earned now."""
+
+    _attr_name = "Free time"
+    _attr_icon = "mdi:gamepad-variant-outline"
+
+    def __init__(self, coordinator, entry, member_id: str, member_name: str) -> None:
+        super().__init__(coordinator, entry, f"{entry.entry_id}_routine_{member_id}")
+        self._member_id = member_id
+        self._attr_device_info = member_device_info(entry, member_id, member_name, coordinator.family_device_id)
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._member_id in self.coordinator.data.routines
+
+    @property
+    def is_on(self) -> bool:
+        decision = self.coordinator.data.routines.get(self._member_id, {})
+        return decision.get("enabled") is True and decision.get("reason") == "ready" and decision.get("locked") is False
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        decision = self.coordinator.data.routines.get(self._member_id, {})
+        return {"member_id": self._member_id, **{
+            key: decision.get(key) for key in ("enabled", "reason", "locked", "effectiveStart", "effectiveCutoff", "timezone", "checkedAt", "validUntil", "total")
+        }, "remaining": len(decision.get("remaining", []))}
+
 
 class KinwallChoreDoneSensor(KinwallEntity, BinarySensorEntity):
     """On once the chore is completed for today; off while it's open or simply not due today."""

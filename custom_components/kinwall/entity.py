@@ -12,7 +12,7 @@ FAMILY_DEVICE_KEY = "family"
 
 # The Kinwall feature switch behind each entity, by its unique ID after "<entry_id>_": the
 # points/chores-remaining sensors, chore binary sensors and chore to-do lists, and the list to-dos.
-FEATURE_BY_UNIQUE_ID = {"sensor_": "chores", "chore_": "chores", "todo_": "chores", "list_": "lists"}
+FEATURE_BY_UNIQUE_ID = {"routine_": "chores", "sensor_": "chores", "chore_": "chores", "todo_": "chores", "list_": "lists"}
 
 
 def feature_of(entry: ConfigEntry, unique_id: str) -> str | None:

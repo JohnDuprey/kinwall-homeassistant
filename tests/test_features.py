@@ -11,14 +11,14 @@ from custom_components.kinwall.const import DOMAIN
 BASE_URL = "http://kinwall.local:8080"
 
 
-def _mock(aioclient_mock, rev: int, features: dict | None, rewards: bool | None = None):
+def _mock(aioclient_mock, rev: int, features: dict | None, rewards: bool | None = None, members=None):
     aioclient_mock.clear_requests()
     settings = {"features": features} if features is not None else {}
     if rewards is not None:
         settings["rewardsEnabled"] = rewards
     aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": rev, "revs": {"events": rev, "lists": 1, "chores": 1}})
     aioclient_mock.get(f"{BASE_URL}/api/settings", json=settings)
-    aioclient_mock.get(f"{BASE_URL}/api/members", json=[{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
+    aioclient_mock.get(f"{BASE_URL}/api/members", json=members if members is not None else [{"id": "m1", "name": "Alice", "pointsToday": 0, "pointsWeek": 0}])
     aioclient_mock.get(f"{BASE_URL}/api/calendars", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/events", json=[])
     aioclient_mock.get(f"{BASE_URL}/api/chores/day", json=[])

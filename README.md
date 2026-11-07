@@ -63,6 +63,7 @@ paired wall screen.
 | `sensor.<member>_points_this_week` | Member | Chore points earned this (household-timezone) week. |
 | `sensor.<member>_chores_remaining_today` | Member | Count of today's chores not yet completed. |
 | `binary_sensor.<member>_<chore>` | Member (or Family for unassigned) | One per chore: **on** once it's completed today, off while open or not due today. Attributes: `due_today`, `points`, `completed_at`, and `checklist` / `checklist_done` / `checklist_total` when the chore has a checklist. The thing to gate automations on ("is the after-school checklist done?"). New chores appear after reloading the integration. |
+| `binary_sensor.<member>_free_time` | Member (children) | **On** only when Kinwall's routine mode says that child has earned Free time right now. See [Free time](#free-time). |
 | `switch.family_night_screen` | Family | The [Night screen](#night-screen) on every wall screen. |
 | `switch.<display>_night_screen` | Wall screen | The Night screen on one paired display. |
 
@@ -108,6 +109,20 @@ The integration fires `kinwall_<type>` on the Home Assistant event bus for every
 receives (e.g. `kinwall_chore_completed`, `kinwall_events_changed`, and since 1.6.0
 `kinwall_reward_redeemed`, `kinwall_reward_approved` and `kinwall_reward_given`), with the webhook's `data` payload
 as the event data — use these in automations for anything the built-in entities don't cover directly.
+
+### Free time
+
+Needs a Kinwall server newer than 1.2.0 and a full-access Kinwall key. Each child gets a
+**Free time** binary sensor that is on only when routine mode is on for them and their required
+chores are done and approved (one still waiting for a grown-up's OK doesn't count). Its `reason`
+attribute says why it's off: `routine` (chores left), `scheduled` (before the routine starts),
+`bedtime` (after free time ends) or `off` (routine mode is off for them). Other attributes:
+`remaining` (chores left), `effectiveStart`, `effectiveCutoff`, `checkedAt` and `validUntil`.
+
+The integration asks Kinwall again whenever anything in the family changes, when the next start
+or end time passes, and at least every 15 minutes. If it can't get an answer the sensor becomes
+unavailable rather than keeping an old "on". Older servers and keys without access simply don't
+get the sensor, and turning Chores off in Kinwall removes it.
 
 ### Night screen
 

@@ -43,6 +43,28 @@ class KinwallData:
     # GET /api/settings `features` and `rewardsEnabled`. A missing key (older server) means on.
     features: dict = field(default_factory=dict)
     rewards_enabled: bool = True
+    routines: dict[str, dict] = field(default_factory=dict)
+
+
+# A decision past its last boundary (after bedtime) has no next one to wait for: ask again this
+# often, which also picks up the next day's schedule.
+ROUTINE_RECHECK = timedelta(minutes=15)
+
+
+def _when(value: object) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _decision_current(decision: dict, now: datetime) -> bool:
+    """Whether a routine decision still holds with no rev change: until its validUntil (the
+    next start or cutoff), and at most ROUTINE_RECHECK old."""
+    checked, until = _when(decision.get("checkedAt")), _when(decision.get("validUntil"))
+    if checked is None or until is None or now - checked >= ROUTINE_RECHECK:
+        return False
+    return until <= checked or now < until
 
 
 class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
@@ -82,7 +104,12 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
         rev = info["rev"]
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         if rev == self._last_rev and today == self._day:
-            return self.data
+            data = dataclasses.replace(self.data)
+            try:
+                data.routines = await self._routines(data, reuse=self.data.routines)
+            except KinwallAuthError as err:
+                raise ConfigEntryAuthFailed("Kinwall API key rejected") from err
+            return data
         data = await self._refresh(rev, info.get("revs"), today)
         self._last_rev, self._day = rev, today
         return data
@@ -123,8 +150,42 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
             raise ConfigEntryAuthFailed("Kinwall API key rejected") from err
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"error refreshing kinwall data: {err}") from err
+        try:
+            data.routines = await self._routines(data)
+        except KinwallAuthError as err:
+            raise ConfigEntryAuthFailed("Kinwall API key rejected") from err
         self._revs = revs
         return data
+
+    async def _routines(self, data: KinwallData, reuse: dict[str, dict] | None = None) -> dict[str, dict]:
+        """Clock-based decisions must refresh even when /api/rev hasn't changed.
+
+        `reuse`: decisions from the last poll, kept while still current (_decision_current), so an
+        unchanged family isn't re-asked every poll (each ask reads the child's chores on the server).
+        Missing/failed decisions are unavailable, never a cached permission to play.
+        Older servers (404) and keys without parent/own-child access (403) still work.
+        """
+        routines = {}
+        if data.features.get("chores") is False:
+            return routines
+        now = datetime.now(timezone.utc)
+        for member in data.members:
+            if member.get("grownUp") is not False:
+                continue
+            kept = (reuse or {}).get(member["id"])
+            if kept and _decision_current(kept, now):
+                routines[member["id"]] = kept
+                continue
+            try:
+                routines[member["id"]] = await self.client.get_routine(member["id"])
+            except KinwallAuthError:
+                raise
+            except KinwallApiError as err:
+                if err.status not in (403, 404):
+                    _LOGGER.warning("Kinwall: Free time decision could not be refreshed (HTTP %s)", err.status)
+            except Exception:  # network errors: keep other entities usable, omit this decision
+                _LOGGER.warning("Kinwall: Free time decision could not be refreshed")
+        return routines
 
     async def _list_items(self, lists: list[dict], full: bool) -> dict[str, list[dict]]:
         """Each list's items: refetched when its itemsRev moved (always on a server without it)."""

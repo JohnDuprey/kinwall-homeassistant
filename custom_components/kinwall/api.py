@@ -68,6 +68,10 @@ class KinwallClient:
     async def get_members(self) -> list[dict[str, Any]]:
         return await self._request("GET", "/api/members")
 
+    async def get_routine(self, member_id: str) -> dict[str, Any]:
+        """Parent/own-child decision; never fetch opaque native app choices."""
+        return await self._request("GET", f"/api/routine-mode/{quote(member_id, safe='')}")
+
     # -- calendars / events ----------------------------------------------
     async def get_calendars(self) -> list[dict[str, Any]]:
         return await self._request("GET", "/api/calendars")
