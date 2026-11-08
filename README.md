@@ -4,14 +4,18 @@
 self-hosted, open-source family life organizer, on your wall and every phone. The main Kinwall server lives in a
 separate repo; this repo has:
 
-- **`custom_components/kinwall`** — a [HACS](https://hacs.xyz)-installable integration: calendars, to-do lists, and
+- **`custom_components/kinwall`** — an integration you install from Home Assistant's Marketplace
+  (or [HACS](https://hacs.xyz) before Home Assistant 2026.11): calendars, to-do lists, and
   sensors for each family member, and Night screen switches for the wall screens, kept live via a
   push webhook.
 - **`kinwall/`** — a Home Assistant add-on that runs the Kinwall server itself.
 
-## Install the integration (HACS)
+## Install the integration
 
-1. HACS → Integrations → ⋮ → Custom repositories → add
+1. Settings → Marketplace → **Add from link** (top right), enter
+   `JohnDuprey/kinwall-homeassistant` and select **Add** (choose **Integration** if it asks for
+   the type). The Marketplace needs your GitHub account connected to add a repository by link.
+   Before Home Assistant 2026.11: HACS → ⋮ → Custom repositories → add
    `https://github.com/JohnDuprey/kinwall-homeassistant`, category "Integration".
 2. Install "Kinwall", restart Home Assistant.
 3. Settings → Devices & Services → Add Integration → "Kinwall".
@@ -24,8 +28,8 @@ separate repo; this repo has:
 Settings → Apps → the store → ⋮ → Repositories → add
 `https://github.com/JohnDuprey/kinwall-homeassistant`, then install "Kinwall" from the store.
 Older Home Assistant versions call apps *add-ons* (Settings → Add-ons → Add-on Store). This is a
-Home Assistant app, installed from the app store rather than HACS; HACS is for the Kinwall
-integration below. Turn on **Show in sidebar**: Kinwall shows up as **Family**. See
+Home Assistant app, installed from the app store rather than the Marketplace; the Marketplace
+is for the Kinwall integration above. Turn on **Show in sidebar**: Kinwall shows up as **Family**. See
 [`kinwall/DOCS.md`](kinwall/DOCS.md) for configuration and iPad kiosk setup.
 
 ## Configuration
@@ -236,7 +240,7 @@ The **Track Kinwall releases** workflow checks the latest published stable
 **Actions → Track Kinwall releases → Run workflow**. It waits until the matching Docker image has
 both `linux/amd64` and `linux/arm64` builds, then opens a PR updating the add-on's
 `kinwall/config.yaml` and prepending the upstream release notes to `kinwall/CHANGELOG.md`.
-The HACS integration's version is independent and is not changed.
+The integration's version is independent and is not changed.
 
 Each version gets one PR. Repeated checks leave existing PRs and review edits alone; closing an
 update PR skips that version. Newer releases can get their own PR, and the changelog links to all

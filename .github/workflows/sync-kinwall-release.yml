@@ -60,7 +60,7 @@ jobs:
           cat > "$RUNNER_TEMP/release-pr.md" <<EOF
           Updates the Home Assistant add-on to Kinwall $VERSION and includes its published release notes.
 
-          Both linux/amd64 and linux/arm64 images are available. Review the changelog and approve any pending validation workflows before merging. The HACS integration version is unchanged.
+          Both linux/amd64 and linux/arm64 images are available. Review the changelog and approve any pending validation workflows before merging. The integration version is unchanged.
 
           Upstream release: https://github.com/JohnDuprey/kinwall/releases/tag/v$VERSION
           EOF

@@ -6,8 +6,9 @@ Self-hosted family wall calendar + chore chart, running as a Home Assistant add-
 
 1. Home Assistant → Settings → Apps → the store → ⋮ → Repositories → add
    `https://github.com/JohnDuprey/kinwall-homeassistant`. (Older Home Assistant versions call
-   apps *add-ons*: Settings → Add-ons → Add-on Store.) This is a Home Assistant app, not HACS;
-   HACS installs the separate Kinwall integration.
+   apps *add-ons*: Settings → Add-ons → Add-on Store.) This is a Home Assistant app, not the
+   Marketplace (HACS before Home Assistant 2026.11), which installs the separate Kinwall
+   integration.
 2. Find "Kinwall" in the store and install it.
 3. Configure the options below, then start it. Turn on **Show in sidebar**: it appears as
    **Family**.
