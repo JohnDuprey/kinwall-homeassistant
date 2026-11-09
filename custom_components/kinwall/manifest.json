@@ -1,6 +1,7 @@
 {
   "domain": "kinwall",
   "name": "Kinwall",
+  "categories": ["productivity_information.calendars_todos"],
   "codeowners": ["@JohnDuprey"],
   "config_flow": true,
   "documentation": "https://github.com/JohnDuprey/kinwall-homeassistant",
