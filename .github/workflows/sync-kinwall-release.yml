@@ -42,7 +42,7 @@ jobs:
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          branch="chore/kinwall-$VERSION"
+          branch="app/kinwall-$VERSION"
           # A closed PR is an intentional skip; never reopen it or overwrite someone's edits.
           existing=$(gh pr list --head "$branch" --base "$BASE_BRANCH" --state all --json number --jq 'length')
           if [ "$existing" != 0 ]; then
@@ -54,16 +54,21 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add kinwall/config.yaml kinwall/CHANGELOG.md
-          git commit -m "chore(release): update add-on to Kinwall $VERSION"
-          # No force push: an existing branch is never overwritten.
-          git push origin "HEAD:refs/heads/$branch"
+          git commit -m "chore(app): run Kinwall $VERSION"
+          # No force push: an existing branch is never overwritten. A branch left by a run whose
+          # PR creation failed is reused as-is.
+          if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then
+            echo "Branch $branch already exists; opening its PR without pushing."
+          else
+            git push origin "HEAD:refs/heads/$branch"
+          fi
           cat > "$RUNNER_TEMP/release-pr.md" <<EOF
-          Updates the Home Assistant add-on to Kinwall $VERSION and includes its published release notes.
+          Updates the Home Assistant app to Kinwall $VERSION and includes its published release notes.
 
           Both linux/amd64 and linux/arm64 images are available. Review the changelog and approve any pending validation workflows before merging. The integration version is unchanged.
 
           Upstream release: https://github.com/JohnDuprey/kinwall/releases/tag/v$VERSION
           EOF
           gh pr create --base "$BASE_BRANCH" --head "$branch" \
-            --title "chore(release): update add-on to Kinwall $VERSION" \
+            --title "chore(app): run Kinwall $VERSION" \
             --body-file "$RUNNER_TEMP/release-pr.md"

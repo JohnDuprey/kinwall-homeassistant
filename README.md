@@ -233,14 +233,26 @@ automation:
 
 ## Development
 
+### Versions and releases
+
+This repo ships two things with independent versions:
+
+- **The integration**: `version` in `custom_components/kinwall/manifest.json`. When a push to
+  `main` changes it, the **Validate** workflow publishes a `v<version>` GitHub release, and the
+  Marketplace (or HACS) installs those releases. Commits that don't bump the version, app updates
+  included, don't reach integration users.
+- **The app**: `version` in `kinwall/config.yaml`. It is the Kinwall server version it runs and
+  the `ghcr.io/johnduprey/kinwall` image tag it pulls. The app store reads it from `main`, so
+  merging a bump makes the update available.
+
 ### Tracking Kinwall server releases
 
 The **Track Kinwall releases** workflow checks the latest published stable
 [Kinwall release](https://github.com/JohnDuprey/kinwall/releases) hourly. You can also run it under
 **Actions → Track Kinwall releases → Run workflow**. It waits until the matching Docker image has
-both `linux/amd64` and `linux/arm64` builds, then opens a PR updating the add-on's
-`kinwall/config.yaml` and prepending the upstream release notes to `kinwall/CHANGELOG.md`.
-The integration's version is independent and is not changed.
+both `linux/amd64` and `linux/arm64` builds, then opens a `chore(app): run Kinwall x.y.z` PR from
+`app/kinwall-x.y.z` updating the app's `kinwall/config.yaml` and prepending the upstream release
+notes to `kinwall/CHANGELOG.md`. The integration's version is not changed.
 
 Each version gets one PR. Repeated checks leave existing PRs and review edits alone; closing an
 update PR skips that version. Newer releases can get their own PR, and the changelog links to all
