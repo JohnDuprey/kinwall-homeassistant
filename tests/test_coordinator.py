@@ -162,7 +162,7 @@ async def test_other_changes_refetch_all_but_unchanged_list_items(hass, aioclien
 async def test_a_new_day_refetches_everything(hass, aioclient_mock, freezer):
     freezer.move_to("2026-10-01 12:00:00+00:00")
     coordinator = await _started(hass, aioclient_mock)
-    freezer.move_to("2026-10-02 00:05:00+00:00")
+    freezer.move_to("2026-10-02 07:05:00+00:00")  # just after midnight in Home Assistant's timezone (US/Pacific)
     _mock_everything(aioclient_mock, rev=1, revs={"events": 1, "lists": 1, "chores": 1})
     await coordinator.async_refresh()
     assert "/api/events" in _paths(aioclient_mock) and "/api/lists/l1?suggestions=false" in _paths(aioclient_mock)
@@ -177,3 +177,31 @@ async def test_older_server_without_revs_refetches_everything(hass, aioclient_mo
     await coordinator.async_refresh()
     assert len(_paths(aioclient_mock)) == 11  # rev, settings, members, calendars, events, chores x2, lists, 2 details, night screen
     assert coordinator.data.list_items["l1"] == [{"id": "l1-i", "title": "Eggs"}]
+
+
+def _chores_day_dates(aioclient_mock) -> list[str]:
+    return [u.query["date"] for m, u, *_ in aioclient_mock.mock_calls if m == "GET" and u.path == "/api/chores/day"]
+
+
+async def test_chores_are_read_for_the_households_date(hass, aioclient_mock, freezer):
+    """Kinwall reads `date` in the household's timezone (GET /api/settings `timezone`), not UTC."""
+    freezer.move_to("2026-03-09T20:00:00Z")  # UTC and Home Assistant (US/Pacific): March 9; Tokyo: March 10
+    _mock_full_refresh(aioclient_mock, rev=1)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{BASE_URL}/api/rev", json={"rev": 1})
+    aioclient_mock.get(f"{BASE_URL}/api/settings", json={"timezone": "Asia/Tokyo"})
+    for path, body in (("members", []), ("calendars", []), ("events", []), ("chores", []), ("chores/day", []), ("lists", [])):
+        aioclient_mock.get(f"{BASE_URL}/api/{path}", json=body)
+    aioclient_mock.get(f"{BASE_URL}/api/displays/night-screen", status=404)
+    coordinator = KinwallCoordinator(hass, KinwallClient(async_get_clientsession(hass), BASE_URL, "fc_key"), poll_interval=30)
+    await coordinator.async_refresh()
+    assert _chores_day_dates(aioclient_mock) == ["2026-03-10"]
+    assert coordinator.today() == "2026-03-10"
+
+
+async def test_without_a_household_timezone_home_assistants_date_is_used(hass, aioclient_mock, freezer):
+    freezer.move_to("2026-03-10T04:00:00Z")  # UTC: March 10; Home Assistant (US/Pacific): March 9, 9 PM
+    _mock_full_refresh(aioclient_mock, rev=1)
+    coordinator = KinwallCoordinator(hass, KinwallClient(async_get_clientsession(hass), BASE_URL, "fc_key"), poll_interval=30)
+    await coordinator.async_refresh()
+    assert _chores_day_dates(aioclient_mock) == ["2026-03-09"]

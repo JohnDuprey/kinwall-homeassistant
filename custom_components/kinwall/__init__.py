@@ -9,11 +9,13 @@ import logging
 import secrets
 from urllib.parse import urlparse
 
+from aiohttp import ClientError
 from aiohttp.web import Request, Response
 from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, CONF_URL, Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -22,7 +24,7 @@ from homeassistant.helpers.network import get_url
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .api import KinwallApiError, KinwallClient
+from .api import KinwallApiError, KinwallAuthError, KinwallClient
 from .const import (
     ALL_WEBHOOK_EVENTS,
     CONF_KINWALL_WEBHOOK_EVENTS,
@@ -198,23 +200,29 @@ async def _async_register_webhook(hass: HomeAssistant, entry: ConfigEntry, clien
         or entry.data.get(CONF_KINWALL_WEBHOOK_URL) not in (None, callback_url)
         or entry.data.get(CONF_KINWALL_WEBHOOK_EVENTS) != ALL_WEBHOOK_EVENTS
     )
-    if kinwall_webhook_id and stale:
-        try:
-            await client.delete_webhook(kinwall_webhook_id)
-        except KinwallApiError as err:
-            _LOGGER.debug("Kinwall: old webhook %s not removed: %s", kinwall_webhook_id, err)
-        kinwall_webhook_id = None
-
-    if not kinwall_webhook_id:
-        try:
-            created = await client.create_webhook(callback_url, secret, ALL_WEBHOOK_EVENTS)
-            kinwall_webhook_id = created["id"]
-        except KinwallApiError as err:
-            _LOGGER.warning("Kinwall: failed to register server-side webhook at %s: %s", callback_url, err)
+    # Like the first refresh: a rejected key asks to reauthenticate, an unreachable Kinwall retries setup.
+    try:
+        if kinwall_webhook_id and stale:
+            try:
+                await client.delete_webhook(kinwall_webhook_id)
+            except KinwallApiError as err:
+                _LOGGER.debug("Kinwall: old webhook %s not removed: %s", kinwall_webhook_id, err)
             kinwall_webhook_id = None
-        new_data[CONF_KINWALL_WEBHOOK_ID] = kinwall_webhook_id
-        new_data[CONF_KINWALL_WEBHOOK_URL] = callback_url if kinwall_webhook_id else None
-        new_data[CONF_KINWALL_WEBHOOK_EVENTS] = list(ALL_WEBHOOK_EVENTS) if kinwall_webhook_id else None
+
+        if not kinwall_webhook_id:
+            try:
+                created = await client.create_webhook(callback_url, secret, ALL_WEBHOOK_EVENTS)
+                kinwall_webhook_id = created["id"]
+            except KinwallApiError as err:
+                _LOGGER.warning("Kinwall: failed to register server-side webhook at %s: %s", callback_url, err)
+                kinwall_webhook_id = None
+            new_data[CONF_KINWALL_WEBHOOK_ID] = kinwall_webhook_id
+            new_data[CONF_KINWALL_WEBHOOK_URL] = callback_url if kinwall_webhook_id else None
+            new_data[CONF_KINWALL_WEBHOOK_EVENTS] = list(ALL_WEBHOOK_EVENTS) if kinwall_webhook_id else None
+    except KinwallAuthError as err:
+        raise ConfigEntryAuthFailed("Kinwall API key rejected") from err
+    except (ClientError, TimeoutError) as err:
+        raise ConfigEntryNotReady(f"Kinwall unreachable while registering its webhook: {err}") from err
 
     if new_data != entry.data:
         hass.config_entries.async_update_entry(entry, data=new_data)

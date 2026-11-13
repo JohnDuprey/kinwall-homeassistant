@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import KinwallApiError, KinwallAuthError, KinwallClient
 from .const import DOMAIN, EVENTS_WINDOW_FUTURE_DAYS, EVENTS_WINDOW_PAST_DAYS
@@ -43,12 +44,19 @@ class KinwallData:
     # GET /api/settings `features` and `rewardsEnabled`. A missing key (older server) means on.
     features: dict = field(default_factory=dict)
     rewards_enabled: bool = True
+    timezone: str | None = None  # GET /api/settings `timezone`: the household's; None until the web app sets it
     routines: dict[str, dict] = field(default_factory=dict)
 
 
 # A decision past its last boundary (after bedtime) has no next one to wait for: ask again this
 # often, which also picks up the next day's schedule.
 ROUTINE_RECHECK = timedelta(minutes=15)
+
+
+def household_today(tz: str | None) -> str:
+    """Today in the household's timezone, which is how Kinwall reads every `date`; Home Assistant's
+    timezone when Kinwall has none (or one this host doesn't know)."""
+    return dt_util.now(dt_util.get_time_zone(tz) if tz else None).date().isoformat()
 
 
 def _when(value: object) -> datetime | None:
@@ -88,6 +96,10 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
         """Whether a Kinwall feature switch is on (None, or a switch the server doesn't send: on)."""
         return feature is None or self.data.features.get(feature) is not False
 
+    def today(self) -> str:
+        """The household's date: what chores_today shows and what a tick or a new chore is for."""
+        return household_today(self.data.timezone)
+
     def require(self, feature: str | None) -> None:
         """Refuse an action on a feature the family turned off in Kinwall."""
         if not self.feature_on(feature):
@@ -102,7 +114,7 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
             raise UpdateFailed(f"error polling rev: {err}") from err
 
         rev = info["rev"]
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = self.today()
         if rev == self._last_rev and today == self._day:
             data = dataclasses.replace(self.data)
             try:
@@ -111,7 +123,7 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
                 raise ConfigEntryAuthFailed("Kinwall API key rejected") from err
             return data
         data = await self._refresh(rev, info.get("revs"), today)
-        self._last_rev, self._day = rev, today
+        self._last_rev = rev
         return data
 
     async def _refresh(self, rev: int, revs: dict | None, today: str) -> KinwallData:
@@ -125,6 +137,8 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
                     settings = await self.client.get_settings()
                     data.features = settings.get("features") or {}
                     data.rewards_enabled = settings.get("rewardsEnabled") is not False
+                    data.timezone = settings.get("timezone")
+                    today = household_today(data.timezone)  # the first refresh learns the timezone here
                 except KinwallApiError:
                     pass  # keep what we had (all on to start with)
             if other or "chores" in changed:
@@ -154,7 +168,7 @@ class KinwallCoordinator(DataUpdateCoordinator[KinwallData]):
             data.routines = await self._routines(data)
         except KinwallAuthError as err:
             raise ConfigEntryAuthFailed("Kinwall API key rejected") from err
-        self._revs = revs
+        self._revs, self._day = revs, today
         return data
 
     async def _routines(self, data: KinwallData, reuse: dict[str, dict] | None = None) -> dict[str, dict]:

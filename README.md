@@ -58,9 +58,9 @@ paired wall screen.
 
 | Entity | Device | Description |
 |---|---|---|
-| `calendar.<member>` | Member | That member's events (any calendar where `memberIds` includes them). Supports creating/editing/deleting events on their first writable calendar. |
+| `calendar.<member>` | Member | That member's events (any calendar where `memberIds` includes them). Supports creating/editing/deleting events on their first writable calendar. Kinwall changes a repeating event only as a whole series: open its first date and choose all future events, or change it in Kinwall. Editing or deleting just one date is refused rather than changing every date. |
 | `calendar.family` | Family | Read-only, all members' events merged. |
-| `todo.<member>` | Member | That day's chores assigned to them. Checking an item off calls Kinwall's complete endpoint; unchecking undoes it. Adding an item creates a one-off chore due today. |
+| `todo.<member>` | Member | That day's chores assigned to them ("today" is the household's date, in the timezone set in Kinwall). Checking an item off calls Kinwall's complete endpoint; unchecking undoes it. Adding an item creates a one-off chore due today. Chores can't be deleted from Home Assistant, so "Clear completed items" can't remove them; delete a chore in Kinwall. |
 | `todo.anyone` | Family | Unassigned chores due today. |
 | `todo.<list>` | Family | One entity per Kinwall list (shopping/to-do/reusable) — see [Lists](#lists) below. |
 | `sensor.<member>_points_today` | Member | Chore points earned today. |

@@ -191,3 +191,30 @@ async def test_reload_keeps_the_kinwall_webhook_and_removal_deletes_it(hass, aio
     assert await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
     assert any(m == "DELETE" and str(u).endswith("/api/webhooks/wh_server_1") for m, u, *_ in aioclient_mock.mock_calls)
+
+
+async def test_unreachable_kinwall_while_registering_the_webhook_retries_setup(hass, aioclient_mock):
+    from homeassistant.config_entries import ConfigEntryState
+
+    _mock_full_refresh(aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/webhooks", exc=TimeoutError())
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_URL: BASE_URL, CONF_API_KEY: "fc_key"})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_rejected_key_while_registering_the_webhook_asks_to_reauthenticate(hass, aioclient_mock):
+    from homeassistant.config_entries import ConfigEntryState
+
+    _mock_full_refresh(aioclient_mock)
+    aioclient_mock.post(f"{BASE_URL}/api/webhooks", status=401)
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_URL: BASE_URL, CONF_API_KEY: "fc_key"})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert any(f["context"]["source"] == "reauth" for f in hass.config_entries.flow.async_progress_by_handler(DOMAIN))

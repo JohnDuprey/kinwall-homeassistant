@@ -35,9 +35,8 @@ async def test_clock_changes_refresh_decision_without_a_revision_change(hass):
     client.get_rev_info.return_value = {"rev": 1}
     client.get_routine.return_value = {"enabled": True, "locked": False, "reason": "ready"}
     coordinator = KinwallCoordinator(hass, client, 30)
-    from datetime import datetime, timezone
     coordinator._last_rev = 1
-    coordinator._day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    coordinator._day = coordinator.today()
     coordinator.data = KinwallData(members=[{"id": "m1", "name": "Maya", "grownUp": False},
         {"id": "m2", "name": "Alex", "grownUp": True}])
     await coordinator.async_refresh()
@@ -62,7 +61,7 @@ async def test_unchanged_decision_is_reused_until_its_next_boundary(hass):
         "checkedAt": _iso(now), "validUntil": _iso(now + timedelta(hours=2))}
     coordinator = KinwallCoordinator(hass, client, 30)
     coordinator._last_rev = 1
-    coordinator._day = now.strftime("%Y-%m-%d")
+    coordinator._day = coordinator.today()
     coordinator.data = KinwallData(members=[{"id": "m1", "name": "Maya", "grownUp": False}])
     await coordinator.async_refresh()
     await coordinator.async_refresh()
@@ -79,7 +78,7 @@ async def test_past_boundary_decision_rechecks_every_fifteen_minutes(hass):
     client.get_rev_info.return_value = {"rev": 1}
     coordinator = KinwallCoordinator(hass, client, 30)
     coordinator._last_rev = 1
-    coordinator._day = now.strftime("%Y-%m-%d")
+    coordinator._day = coordinator.today()
     bedtime = {"enabled": True, "locked": True, "reason": "bedtime",
         "checkedAt": _iso(now), "validUntil": _iso(now - timedelta(hours=1))}  # after cutoff
     coordinator.data = KinwallData(members=[{"id": "m1", "grownUp": False}], routines={"m1": bedtime})
@@ -100,7 +99,7 @@ async def test_revision_change_refetches_a_fresh_decision(hass):
     client.get_routine.return_value = {"enabled": True, "locked": False, "reason": "ready"}
     coordinator = KinwallCoordinator(hass, client, 30)
     coordinator._last_rev, coordinator._revs = 1, {"events": 1, "lists": 1, "chores": 1}
-    coordinator._day = now.strftime("%Y-%m-%d")
+    coordinator._day = coordinator.today()
     coordinator.data = KinwallData(members=[{"id": "m1", "grownUp": False}], routines={"m1": {
         "enabled": True, "locked": True, "reason": "routine",
         "checkedAt": _iso(now), "validUntil": _iso(now + timedelta(hours=2))}})

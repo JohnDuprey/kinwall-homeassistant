@@ -20,16 +20,13 @@ from .api import KinwallApiError
 from .const import DEFAULT_CHORE_POINTS, DOMAIN, OPT_CHORE_POINTS
 from .coordinator import KinwallCoordinator
 from .entity import KinwallEntity, family_device_info, member_device_info
+from .services import _call
 
 ANYONE_ID = "_anyone"
 
 # Generated "Store · Category · qty" description line for shopping items is prefixed with this
 # marker so it can be told apart from the item's own notes and stripped back out on write.
 _META_PREFIX = "\U0001f6d2 "  # shopping-cart emoji
-
-
-def _today() -> str:
-    return date.today().isoformat()
 
 
 def _to_todo_item(chore: dict[str, Any]) -> TodoItem:
@@ -117,13 +114,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
 class KinwallChoreList(KinwallEntity, TodoListEntity):
-    """Today's chores for one member (or unassigned, for 'Anyone')."""
+    """Today's chores for one member (or unassigned, for 'Anyone').
 
-    _attr_supported_features = (
-        TodoListEntityFeature.CREATE_TODO_ITEM
-        | TodoListEntityFeature.DELETE_TODO_ITEM
-        | TodoListEntityFeature.UPDATE_TODO_ITEM
-    )
+    No delete: an item is today's copy of a chore, and DELETE /api/chores/{id} removes the chore
+    itself (every day, and its copies for everyone else in its group), so "Clear completed items"
+    would wipe out every chore done today. Chores are removed in Kinwall.
+    """
+
+    _attr_supported_features = TodoListEntityFeature.CREATE_TODO_ITEM | TodoListEntityFeature.UPDATE_TODO_ITEM
 
     def __init__(self, coordinator: KinwallCoordinator, entry: ConfigEntry, member_id: str, member_name: str) -> None:
         super().__init__(coordinator, entry, f"{entry.entry_id}_todo_{member_id}")
@@ -145,7 +143,7 @@ class KinwallChoreList(KinwallEntity, TodoListEntity):
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         self.coordinator.require(self._feature)
-        today = _today()
+        today = self.coordinator.today()
         if item.status == TodoItemStatus.COMPLETED:
             member_id = None if self._member_id == ANYONE_ID else self._member_id
             try:
@@ -154,22 +152,16 @@ class KinwallChoreList(KinwallEntity, TodoListEntity):
                 # e.g. 409 "Checklist not finished (2 left)": surface the server's reason, not a stack trace.
                 raise HomeAssistantError(err.reason or str(err)) from err
         else:
-            await self.coordinator.client.uncomplete_chore(item.uid, today)
+            await _call("undo the chore", self.coordinator.client.uncomplete_chore(item.uid, today))
         await self.coordinator.async_request_refresh()
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
         self.coordinator.require(self._feature)
         # Points come from the integration's options (default 5) so automations get a sensible value.
-        payload: dict[str, Any] = {"title": item.summary, "dueDate": _today(), "points": self._entry.options.get(OPT_CHORE_POINTS, DEFAULT_CHORE_POINTS)}
+        payload: dict[str, Any] = {"title": item.summary, "dueDate": self.coordinator.today(), "points": self._entry.options.get(OPT_CHORE_POINTS, DEFAULT_CHORE_POINTS)}
         if self._member_id != ANYONE_ID:
             payload["memberId"] = self._member_id
-        await self.coordinator.client.create_chore(payload)
-        await self.coordinator.async_request_refresh()
-
-    async def async_delete_todo_items(self, uids: list[str]) -> None:
-        self.coordinator.require(self._feature)
-        for uid in uids:
-            await self.coordinator.client.delete_chore(uid)
+        await _call("add the chore", self.coordinator.client.create_chore(payload))
         await self.coordinator.async_request_refresh()
 
 
@@ -221,7 +213,7 @@ class KinwallList(KinwallEntity, TodoListEntity):
         notes = _notes_from_description(item.description)
         if notes:
             payload["notes"] = notes
-        await self.coordinator.client.create_list_items(self._list_id, payload)
+        await _call("add the item", self.coordinator.client.create_list_items(self._list_id, payload))
         await self.coordinator.async_request_refresh()
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
@@ -234,19 +226,21 @@ class KinwallList(KinwallEntity, TodoListEntity):
             "dueDate": item.due.isoformat() if item.due else None,
             "notes": _notes_from_description(item.description),
         }
-        await self.coordinator.client.update_list_item(self._list_id, item.uid, payload)
+        await _call("update the item", self.coordinator.client.update_list_item(self._list_id, item.uid, payload))
         await self.coordinator.async_request_refresh()
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         self.coordinator.require(self._feature)
         for uid in uids:
-            await self.coordinator.client.delete_list_item(self._list_id, uid)
+            await _call("delete the item", self.coordinator.client.delete_list_item(self._list_id, uid))
         await self.coordinator.async_request_refresh()
 
     async def async_move_todo_item(self, uid: str, previous_uid: str | None = None) -> None:
         self.coordinator.require(self._feature)
         order = [i["id"] for i in self._items() if i["id"] != uid]
+        if previous_uid and previous_uid not in order:
+            raise HomeAssistantError("That item is no longer on the list; try again once it has refreshed")
         index = order.index(previous_uid) + 1 if previous_uid else 0
         order.insert(index, uid)
-        await self.coordinator.client.reorder_list_items(self._list_id, order)
+        await _call("move the item", self.coordinator.client.reorder_list_items(self._list_id, order))
         await self.coordinator.async_request_refresh()

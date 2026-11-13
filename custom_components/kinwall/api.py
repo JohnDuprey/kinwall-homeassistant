@@ -82,6 +82,10 @@ class KinwallClient:
             params["memberId"] = member_id
         return await self._request("GET", "/api/events", params=params)
 
+    async def get_event(self, event_id: str) -> dict[str, Any]:
+        """The event itself: for a repeating Kinwall event, the series (its first date)."""
+        return await self._request("GET", f"/api/events/{event_id}")
+
     async def create_event(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", "/api/events", json=payload)
 
@@ -100,9 +104,6 @@ class KinwallClient:
 
     async def create_chore(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", "/api/chores", json=payload)
-
-    async def delete_chore(self, chore_id: str) -> None:
-        await self._request("DELETE", f"/api/chores/{chore_id}")
 
     async def complete_chore(self, chore_id: str, date: str, member_id: str | None = None) -> None:
         payload: dict[str, Any] = {"date": date}

@@ -5,7 +5,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -77,7 +77,9 @@ class KinwallConfigFlow(ConfigFlow, domain=DOMAIN):
                     self._reauth_entry,
                     data={**self._reauth_entry.data, CONF_API_KEY: user_input[CONF_API_KEY]},
                 )
-                await self.hass.config_entries.async_reload(self._reauth_entry.entry_id)
+                # A loaded entry's update listener reloads it; one whose setup failed has no listener yet.
+                if self._reauth_entry.state is not ConfigEntryState.LOADED:
+                    self.hass.config_entries.async_schedule_reload(self._reauth_entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
 
         return self.async_show_form(

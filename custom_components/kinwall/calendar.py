@@ -11,11 +11,20 @@ from homeassistant.components.calendar import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import KinwallCoordinator
 from .entity import KinwallEntity, family_device_info, member_device_info
+from .services import _call
+
+# Kinwall changes or deletes a repeating event only as a whole series (PATCH/DELETE /api/events/{id}).
+_ONE_DATE_REFUSED = (
+    "Kinwall can only change or delete a repeating event as a whole series, not one date (or the dates "
+    "from one on). Open its first date and choose all future events, or change it in Kinwall."
+)
 
 
 def _parse_dt(value: str, all_day: bool) -> date | datetime:
@@ -34,6 +43,9 @@ def _to_calendar_event(item: dict[str, Any]) -> CalendarEvent:
         location=item.get("location") or None,
         uid=item["id"],
         rrule=item.get("rrule") or None,
+        # GET /api/events expands a repeating Kinwall event into one entry per date, all with the
+        # series' id; occurrenceStart tells them apart (null for everything else).
+        recurrence_id=item.get("occurrenceStart") or None,
     )
 
 
@@ -92,31 +104,16 @@ class _KinwallCalendarBase(KinwallEntity, CalendarEntity):
     def _events_for(self) -> list[dict[str, Any]]:
         raise NotImplementedError
 
+    # All-day events are dates: *_datetime_local puts them at local midnight, not UTC midnight.
     @property
     def event(self) -> CalendarEvent | None:
-        now = datetime.now(timezone.utc)
-        upcoming = [e for e in self._events_for() if _parse_end(e) >= now]
-        upcoming.sort(key=lambda e: e["start"])
-        return _to_calendar_event(upcoming[0]) if upcoming else None
+        now = dt_util.now()
+        upcoming = [ev for ev in map(_to_calendar_event, self._events_for()) if ev.end_datetime_local >= now]
+        return min(upcoming, key=lambda ev: ev.start_datetime_local, default=None)
 
     async def async_get_events(self, hass: HomeAssistant, start_date: datetime, end_date: datetime) -> list[CalendarEvent]:
-        out = []
-        for item in self._events_for():
-            all_day = item["allDay"]
-            item_start = _parse_dt(item["start"], all_day)
-            item_end = _parse_dt(item["end"], all_day)
-            s = datetime.combine(item_start, datetime.min.time(), tzinfo=timezone.utc) if all_day else item_start
-            e = datetime.combine(item_end, datetime.min.time(), tzinfo=timezone.utc) if all_day else item_end
-            if e < start_date or s > end_date:
-                continue
-            out.append(_to_calendar_event(item))
-        return out
-
-
-def _parse_end(item: dict[str, Any]) -> datetime:
-    if item["allDay"]:
-        return datetime.combine(date.fromisoformat(item["end"]), datetime.min.time(), tzinfo=timezone.utc)
-    return datetime.fromisoformat(item["end"].replace("Z", "+00:00")).astimezone(timezone.utc)
+        events = map(_to_calendar_event, self._events_for())
+        return [ev for ev in events if not (ev.end_datetime_local < start_date or ev.start_datetime_local > end_date)]
 
 
 class KinwallFamilyCalendar(_KinwallCalendarBase):
@@ -150,17 +147,37 @@ class KinwallMemberCalendar(_KinwallCalendarBase):
     async def async_create_event(self, **kwargs: Any) -> None:
         calendar_id = _writable_calendar_id(self.coordinator.data.calendars, self._member_id)
         if not calendar_id:
-            raise ValueError("No writable calendar available for this member")
+            raise HomeAssistantError("No writable calendar available for this member")
         payload = _event_to_payload(kwargs)
         payload["calendarId"] = calendar_id
         payload["memberIds"] = [self._member_id]
-        await self.coordinator.client.create_event(payload)
+        await _call("add the event", self.coordinator.client.create_event(payload))
         await self.coordinator.async_request_refresh()
 
+    async def _require_whole_series(self, uid: str, recurrence_id: str | None, recurrence_range: str | None) -> None:
+        """Refuse a change meant for one date of a repeating event (it would hit the whole series, and
+        an edit would move the series' start to that date). Home Assistant asks for all of them as
+        "this and future" from the first date."""
+        if not recurrence_id:
+            return
+        series = await _call("read the event", self.coordinator.client.get_event(uid))
+        if recurrence_range != "THISANDFUTURE" or not _same_start(recurrence_id, series["start"]):
+            raise HomeAssistantError(_ONE_DATE_REFUSED)
+
     async def async_update_event(self, uid: str, event: dict[str, Any], recurrence_id: str | None = None, recurrence_range: str | None = None) -> None:
-        await self.coordinator.client.update_event(uid, _event_to_payload(event))
+        await self._require_whole_series(uid, recurrence_id, recurrence_range)
+        await _call("update the event", self.coordinator.client.update_event(uid, _event_to_payload(event)))
         await self.coordinator.async_request_refresh()
 
     async def async_delete_event(self, uid: str, recurrence_id: str | None = None, recurrence_range: str | None = None) -> None:
-        await self.coordinator.client.delete_event(uid)
+        await self._require_whole_series(uid, recurrence_id, recurrence_range)
+        await _call("delete the event", self.coordinator.client.delete_event(uid))
         await self.coordinator.async_request_refresh()
+
+
+def _same_start(a: str, b: str) -> bool:
+    """Two of Kinwall's starts name the same moment (dates, or date-times written differently)."""
+    try:
+        return datetime.fromisoformat(a.replace("Z", "+00:00")) == datetime.fromisoformat(b.replace("Z", "+00:00"))
+    except ValueError:
+        return a == b

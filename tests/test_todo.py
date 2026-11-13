@@ -23,6 +23,7 @@ def expected_lingering_timers() -> bool:
 
 class _FakeEntry:
     entry_id = "entry1"
+    options: dict = {}
 
 
 # -- pure mapping logic: ListItem -> TodoItem, no hass needed --------------------
@@ -71,8 +72,11 @@ def test_to_list_todo_item_open_no_due():
     assert item.description is None
 
 
-async def test_complete_calls_complete_api(hass, aioclient_mock):
-    today = date.today().isoformat()
+async def test_complete_calls_complete_api(hass, aioclient_mock, freezer):
+    # 8 PM on March 9 in Home Assistant's timezone (US/Pacific in tests), already March 10 in UTC:
+    # the tick is for the household's March 9, the day the list shows.
+    freezer.move_to("2026-03-10T04:00:00Z")
+    today = "2026-03-09"
     from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
     from custom_components.kinwall.api import KinwallClient
@@ -98,6 +102,70 @@ async def test_complete_calls_complete_api(hass, aioclient_mock):
     complete_calls = [c for c in aioclient_mock.mock_calls if c[0] == "POST" and "complete" in str(c[1])]
     assert len(complete_calls) == 1
     assert complete_calls[0][2] == {"date": today, "memberId": "m1"}
+
+
+def _make_chore_entity(hass, aioclient_mock):
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+    from custom_components.kinwall.api import KinwallClient
+
+    client = KinwallClient(async_get_clientsession(hass), "http://kinwall.local:8080", "fc_key")
+    coordinator = KinwallCoordinator(hass, client, poll_interval=30)
+    coordinator.data = KinwallData(rev=1, members=[{"id": "m1", "name": "Alice"}])
+    coordinator._last_rev = 1
+    entity = KinwallChoreList(coordinator, _FakeEntry(), "m1", "Alice")
+    entity.hass = hass
+    aioclient_mock.get("http://kinwall.local:8080/api/rev", json={"rev": 1})
+    return entity
+
+
+def test_chore_lists_cannot_delete_chores(hass):
+    """Deleting would archive the chore itself (every day, every person in its group), so
+    "Clear completed items" must not be offered on a chore list."""
+    from homeassistant.components.todo import TodoListEntityFeature
+
+    coordinator = KinwallCoordinator(hass, None, poll_interval=30)
+    entity = KinwallChoreList(coordinator, _FakeEntry(), "m1", "Alice")
+    assert not entity.supported_features & TodoListEntityFeature.DELETE_TODO_ITEM
+    assert "async_delete_todo_items" not in KinwallChoreList.__dict__
+
+
+async def test_new_chore_is_due_on_the_households_today(hass, aioclient_mock, freezer):
+    freezer.move_to("2026-03-10T04:00:00Z")  # March 9, 8 PM in US/Pacific
+    entity = _make_chore_entity(hass, aioclient_mock)
+    aioclient_mock.post("http://kinwall.local:8080/api/chores", json={"id": "c9"})
+    await entity.async_create_todo_item(TodoItem(summary="Feed the cat", status=TodoItemStatus.NEEDS_ACTION))
+    posts = [c for c in aioclient_mock.mock_calls if c[0] == "POST"]
+    assert posts[0][2]["dueDate"] == "2026-03-09"
+
+
+async def test_chore_write_failures_are_home_assistant_errors(hass, aioclient_mock):
+    from homeassistant.exceptions import HomeAssistantError
+
+    entity = _make_chore_entity(hass, aioclient_mock)
+    aioclient_mock.delete("http://kinwall.local:8080/api/chores/c1/complete", status=404, text='{"error":"not found"}')
+    with pytest.raises(HomeAssistantError, match="not found"):
+        await entity.async_update_todo_item(TodoItem(uid="c1", summary="Dishes", status=TodoItemStatus.NEEDS_ACTION))
+    aioclient_mock.post("http://kinwall.local:8080/api/chores", status=400, text='{"error":"title is required"}')
+    with pytest.raises(HomeAssistantError, match="title is required"):
+        await entity.async_create_todo_item(TodoItem(summary="", status=TodoItemStatus.NEEDS_ACTION))
+
+
+async def test_list_write_failures_are_home_assistant_errors(hass, aioclient_mock):
+    from homeassistant.exceptions import HomeAssistantError
+
+    entity = _make_list_entity(hass, aioclient_mock, items=[{"id": "a"}])
+    aioclient_mock.post("http://kinwall.local:8080/api/lists/l1/items", status=400, text='{"error":"bad item"}')
+    aioclient_mock.patch("http://kinwall.local:8080/api/lists/l1/items/a", status=404, text='{"error":"not found"}')
+    aioclient_mock.delete("http://kinwall.local:8080/api/lists/l1/items/a", status=404, text='{"error":"not found"}')
+    with pytest.raises(HomeAssistantError, match="bad item"):
+        await entity.async_create_todo_item(TodoItem(summary="Milk", status=TodoItemStatus.NEEDS_ACTION))
+    with pytest.raises(HomeAssistantError, match="not found"):
+        await entity.async_update_todo_item(TodoItem(uid="a", summary="Milk", status=TodoItemStatus.COMPLETED))
+    with pytest.raises(HomeAssistantError, match="not found"):
+        await entity.async_delete_todo_items(["a"])
+    with pytest.raises(HomeAssistantError):
+        await entity.async_move_todo_item("a", previous_uid="gone")  # an item another device removed
 
 
 # -- KinwallList: create/update/delete/move call the right Kinwall list endpoints --------
