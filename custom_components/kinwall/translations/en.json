@@ -25,7 +25,7 @@
       }
     },
     "error": {
-      "invalid_url": "That doesn't look like a web address. Try something like http://kinwall.local:8080.",
+      "invalid_url": "That doesn't look like a web address. Try something like {example_url}.",
       "invalid_auth": "Kinwall refused that API key. Check that you copied all of it and that its scope is admin.",
       "cannot_connect": "Couldn't reach Kinwall at that address. Check the address and that Kinwall is running.",
       "unknown": "Something unexpected went wrong. Check Home Assistant's log for details."
