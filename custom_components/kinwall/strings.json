@@ -4,24 +4,31 @@
       "user": {
         "title": "Connect to Kinwall",
         "data": {
-          "url": "URL",
-          "api_key": "Admin API key"
+          "url": "Kinwall address",
+          "api_key": "API key (admin)"
         },
         "data_description": {
-          "url": "e.g. {example_url}",
-          "api_key": "An admin-scope key from Kinwall Settings → API keys. Needed to register the push webhook."
-        }
+          "url": "Where Kinwall runs, like {example_url}. If you leave off http:// or https://, it's added for you.",
+          "api_key": "The key's scope must be admin. It works like a password, so keep it private."
+        },
+        "description": "Make an admin API key in Kinwall under Settings → API keys, then paste it here. Home Assistant uses it to read your family's data and to register the push webhook."
       },
       "reauth_confirm": {
-        "title": "Reauthenticate Kinwall",
+        "title": "Sign in to Kinwall again",
         "data": {
-          "api_key": "Admin API key"
+          "api_key": "API key (admin)"
+        },
+        "description": "Kinwall refused the saved API key, so it may have been deleted or replaced. Make a new admin key under Settings → API keys and paste it here.",
+        "data_description": {
+          "api_key": "The new admin key from Kinwall under Settings → API keys."
         }
       }
     },
     "error": {
-      "invalid_auth": "Invalid API key",
-      "cannot_connect": "Could not connect to Kinwall"
+      "invalid_url": "That doesn't look like a web address. Try something like http://kinwall.local:8080.",
+      "invalid_auth": "Kinwall refused that API key. Check that you copied all of it and that its scope is admin.",
+      "cannot_connect": "Couldn't reach Kinwall at that address. Check the address and that Kinwall is running.",
+      "unknown": "Something unexpected went wrong. Check Home Assistant's log for details."
     },
     "abort": {
       "already_configured": "This Kinwall server is already configured",
@@ -31,9 +38,15 @@
   "options": {
     "step": {
       "init": {
+        "title": "Kinwall options",
+        "description": "How often Home Assistant checks Kinwall, and the default for chores it creates.",
         "data": {
-          "poll_interval": "Poll interval (seconds)",
-          "chore_points": "Points for chores created from Home Assistant"
+          "poll_interval": "Check every (seconds)",
+          "chore_points": "Points for new chores"
+        },
+        "data_description": {
+          "poll_interval": "Kinwall also pushes changes right away, so this is a backup. Between 10 and 3600.",
+          "chore_points": "Points for chores you create from Home Assistant, such as with an automation. 0 to 1000."
         }
       }
     }

@@ -1,16 +1,18 @@
 """Config flow for Kinwall."""
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import urlparse
 
 import voluptuous as vol
+from aiohttp import ClientError
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import KinwallAuthError, KinwallClient
+from .api import KinwallApiError, KinwallAuthError, KinwallClient
 from .const import DEFAULT_CHORE_POINTS, DEFAULT_POLL_INTERVAL, DOMAIN, MAX_POLL_INTERVAL, MIN_POLL_INTERVAL, OPT_CHORE_POINTS, OPT_POLL_INTERVAL
 
 STEP_USER_SCHEMA = vol.Schema(
@@ -19,6 +21,27 @@ STEP_USER_SCHEMA = vol.Schema(
         vol.Required(CONF_API_KEY): str,
     }
 )
+
+
+def normalize_url(raw: str) -> str | None:
+    """Add a missing scheme (http for a home server, https otherwise); None if it isn't a web address."""
+    url = raw.strip()
+    if not re.match(r"^https?://", url, re.I):
+        host = url.split("/")[0].split(":")[0]
+        local = host == "localhost" or host.endswith(".local") or re.fullmatch(r"[\d.]+", host)
+        url = ("http://" if local else "https://") + url
+    try:
+        return url.rstrip("/") if urlparse(url).hostname else None
+    except ValueError:
+        return None
+
+
+def _error(err: Exception) -> str:
+    if isinstance(err, KinwallAuthError):
+        return "invalid_auth"
+    if isinstance(err, (ClientError, TimeoutError, KinwallApiError)):
+        return "cannot_connect"
+    return "unknown"
 
 
 async def _validate(hass, url: str, api_key: str) -> dict[str, Any]:
@@ -39,13 +62,15 @@ class KinwallConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> Any:
         errors: dict[str, str] = {}
         if user_input is not None:
-            url = user_input[CONF_URL].rstrip("/")
+            url = normalize_url(user_input[CONF_URL])
             try:
+                if url is None:
+                    raise ValueError
                 settings = await _validate(self.hass, url, user_input[CONF_API_KEY])
-            except KinwallAuthError:
-                errors = {"base": "invalid_auth"}
-            except Exception:  # noqa: BLE001
-                errors = {"base": "cannot_connect"}
+            except ValueError:
+                errors = {"base": "invalid_url"}
+            except Exception as err:  # noqa: BLE001
+                errors = {"base": _error(err)}
             else:
                 unique_id = urlparse(url).netloc or url
                 await self.async_set_unique_id(unique_id)
@@ -91,10 +116,8 @@ class KinwallConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _try_connect(self, url: str, api_key: str) -> dict[str, str]:
         try:
             await _validate(self.hass, url, api_key)
-        except KinwallAuthError:
-            return {"base": "invalid_auth"}
-        except Exception:  # noqa: BLE001
-            return {"base": "cannot_connect"}
+        except Exception as err:  # noqa: BLE001
+            return {"base": _error(err)}
         return {}
 
     @staticmethod

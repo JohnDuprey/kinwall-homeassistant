@@ -1,4 +1,5 @@
 """Config flow tests: happy path + invalid auth."""
+from aiohttp import ClientError
 from homeassistant import config_entries
 from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
@@ -37,7 +38,7 @@ async def test_user_flow_invalid_auth(hass, aioclient_mock):
 
 
 async def test_user_flow_cannot_connect(hass, aioclient_mock):
-    aioclient_mock.get(f"{BASE_URL}/api/settings", exc=Exception("boom"))
+    aioclient_mock.get(f"{BASE_URL}/api/settings", exc=ClientError("boom"))
 
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     result2 = await hass.config_entries.flow.async_configure(
@@ -104,3 +105,32 @@ async def test_reauth_of_an_entry_that_failed_setup_loads_it(hass, aioclient_moc
     _mock_full_refresh(aioclient_mock)
     await _reauth(hass, entry)
     assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_user_flow_unknown_error(hass, aioclient_mock):
+    aioclient_mock.get(f"{BASE_URL}/api/settings", exc=Exception("boom"))
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_URL: BASE_URL, CONF_API_KEY: "fc_key"}
+    )
+    assert result2["errors"] == {"base": "unknown"}
+
+
+async def test_user_flow_adds_missing_scheme(hass, aioclient_mock):
+    aioclient_mock.get(f"{BASE_URL}/api/settings", json={"familyName": "The Parkers"})
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_URL: "kinwall.local:8080/", CONF_API_KEY: "fc_goodkey"}
+    )
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    assert result2["data"][CONF_URL] == BASE_URL
+
+
+async def test_user_flow_invalid_url(hass):
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_URL: "http://", CONF_API_KEY: "fc_key"}
+    )
+    assert result2["errors"] == {"base": "invalid_url"}
